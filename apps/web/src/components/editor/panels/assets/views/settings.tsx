@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { PanelBaseView as BaseView } from "@/components/editor/panels/panel-base-view";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import {
 	BLUR_INTENSITY_PRESETS,
+	CANVAS_SIZE_PRESETS,
 	DEFAULT_BLUR_INTENSITY,
 	DEFAULT_COLOR,
 	FPS_PRESETS,
@@ -26,8 +27,6 @@ import {
 	VIDEO_PROVIDERS,
 } from "@/lib/ai/providers";
 import { useAISettingsStore } from "@/stores/ai-settings-store";
-import { useEditorStore } from "@/stores/editor-store";
-import { dimensionToAspectRatio } from "@/utils/geometry";
 import { cn } from "@/utils/ui";
 import {
 	PropertyGroup,
@@ -35,7 +34,6 @@ import {
 	PropertyItemLabel,
 	PropertyItemValue,
 } from "@/components/editor/panels/properties/property-item";
-import { ColorPicker } from "@/components/ui/color-picker";
 
 export function SettingsView() {
 	return <ProjectSettingsTabs />;
@@ -81,55 +79,87 @@ function ProjectSettingsTabs() {
 	);
 }
 
+const CANVAS_FIT_VALUE = "fit";
+const CANVAS_CUSTOM_VALUE = "custom";
+
+function resolveCanvasSizePresetValue({
+	width,
+	height,
+	originalCanvasSize,
+}: {
+	width: number;
+	height: number;
+	originalCanvasSize: { width: number; height: number } | null;
+}): string {
+	const isOriginalMatch =
+		originalCanvasSize &&
+		originalCanvasSize.width === width &&
+		originalCanvasSize.height === height;
+	if (isOriginalMatch) {
+		return CANVAS_FIT_VALUE;
+	}
+
+	for (const preset of CANVAS_SIZE_PRESETS) {
+		if (preset.width === width && preset.height === height) {
+			return preset.label;
+		}
+	}
+
+	return CANVAS_CUSTOM_VALUE;
+}
+
 function ProjectInfoView() {
 	const editor = useEditor();
 	const activeProject = editor.project.getActive();
-	const { canvasPresets } = useEditorStore();
-
-	const findPresetIndexByAspectRatio = ({
-		presets,
-		targetAspectRatio,
-	}: {
-		presets: Array<{ width: number; height: number }>;
-		targetAspectRatio: string;
-	}) => {
-		for (let index = 0; index < presets.length; index++) {
-			const preset = presets[index];
-			const presetAspectRatio = dimensionToAspectRatio({
-				width: preset.width,
-				height: preset.height,
-			});
-			if (presetAspectRatio === targetAspectRatio) {
-				return index;
-			}
-		}
-		return -1;
-	};
 
 	const currentCanvasSize = activeProject.settings.canvasSize;
-	const currentAspectRatio = dimensionToAspectRatio(currentCanvasSize);
 	const originalCanvasSize = activeProject.settings.originalCanvasSize ?? null;
-	const presetIndex = findPresetIndexByAspectRatio({
-		presets: canvasPresets,
-		targetAspectRatio: currentAspectRatio,
-	});
-	const originalPresetValue = "original";
-	const selectedPresetValue =
-		presetIndex !== -1 ? presetIndex.toString() : originalPresetValue;
 
-	const handleAspectRatioChange = ({ value }: { value: string }) => {
-		if (value === originalPresetValue) {
+	const selectedValue = resolveCanvasSizePresetValue({
+		width: currentCanvasSize.width,
+		height: currentCanvasSize.height,
+		originalCanvasSize,
+	});
+
+	const isCustom = selectedValue === CANVAS_CUSTOM_VALUE;
+	const [customWidth, setCustomWidth] = useState(currentCanvasSize.width);
+	const [customHeight, setCustomHeight] = useState(currentCanvasSize.height);
+
+	const handleCanvasSizeChange = ({ value }: { value: string }) => {
+		if (value === CANVAS_FIT_VALUE) {
 			const canvasSize = originalCanvasSize ?? currentCanvasSize;
-			editor.project.updateSettings({
-				settings: { canvasSize },
-			});
+			editor.project.updateSettings({ settings: { canvasSize } });
 			return;
 		}
-		const index = parseInt(value, 10);
-		const preset = canvasPresets[index];
-		if (preset) {
-			editor.project.updateSettings({ settings: { canvasSize: preset } });
+
+		if (value === CANVAS_CUSTOM_VALUE) {
+			setCustomWidth(currentCanvasSize.width);
+			setCustomHeight(currentCanvasSize.height);
+			return;
 		}
+
+		const matched = CANVAS_SIZE_PRESETS.find(
+			(preset) => preset.label === value,
+		);
+		if (matched) {
+			editor.project.updateSettings({
+				settings: { canvasSize: { width: matched.width, height: matched.height } },
+			});
+		}
+	};
+
+	const applyCustomSize = ({
+		width,
+		height,
+	}: {
+		width: number;
+		height: number;
+	}) => {
+		const clampedWidth = Math.max(1, Math.round(width));
+		const clampedHeight = Math.max(1, Math.round(height));
+		editor.project.updateSettings({
+			settings: { canvasSize: { width: clampedWidth, height: clampedHeight } },
+		});
 	};
 
 	const handleFpsChange = (value: string) => {
@@ -145,32 +175,71 @@ function ProjectInfoView() {
 			</PropertyItem>
 
 			<PropertyItem direction="column">
-				<PropertyItemLabel>Aspect ratio</PropertyItemLabel>
+				<PropertyItemLabel>Canvas size</PropertyItemLabel>
 				<PropertyItemValue>
 					<Select
-						value={selectedPresetValue}
-						onValueChange={(value) => handleAspectRatioChange({ value })}
+						value={selectedValue}
+						onValueChange={(value) => handleCanvasSizeChange({ value })}
 					>
 						<SelectTrigger>
-							<SelectValue placeholder="Select an aspect ratio" />
+							<SelectValue placeholder="Select canvas size" />
 						</SelectTrigger>
 						<SelectContent>
-							<SelectItem value={originalPresetValue}>Original</SelectItem>
-							{canvasPresets.map((preset, index) => {
-								const label = dimensionToAspectRatio({
-									width: preset.width,
-									height: preset.height,
-								});
-								return (
-									<SelectItem key={label} value={index.toString()}>
-										{label}
-									</SelectItem>
-								);
-							})}
+							<SelectItem value={CANVAS_FIT_VALUE}>
+								{originalCanvasSize
+									? `Fit (${originalCanvasSize.width}×${originalCanvasSize.height})`
+									: "Fit"}
+							</SelectItem>
+							{CANVAS_SIZE_PRESETS.map((preset) => (
+								<SelectItem key={preset.label} value={preset.label}>
+									{preset.label} ({preset.width}×{preset.height})
+								</SelectItem>
+							))}
+							<SelectItem value={CANVAS_CUSTOM_VALUE}>Custom</SelectItem>
 						</SelectContent>
 					</Select>
 				</PropertyItemValue>
 			</PropertyItem>
+
+			{isCustom && (
+				<div className="flex items-center gap-2">
+					<Input
+						type="number"
+						min={1}
+						value={customWidth}
+						onChange={(event) => {
+							const value = Number(event.target.value);
+							setCustomWidth(value);
+						}}
+						onBlur={() => applyCustomSize({ width: customWidth, height: customHeight })}
+						onKeyDown={(event) => {
+							if (event.key === "Enter") {
+								applyCustomSize({ width: customWidth, height: customHeight });
+							}
+						}}
+						className="w-0 flex-1"
+						aria-label="Canvas width"
+					/>
+					<span className="text-muted-foreground text-xs">×</span>
+					<Input
+						type="number"
+						min={1}
+						value={customHeight}
+						onChange={(event) => {
+							const value = Number(event.target.value);
+							setCustomHeight(value);
+						}}
+						onBlur={() => applyCustomSize({ width: customWidth, height: customHeight })}
+						onKeyDown={(event) => {
+							if (event.key === "Enter") {
+								applyCustomSize({ width: customWidth, height: customHeight });
+							}
+						}}
+						className="w-0 flex-1"
+						aria-label="Canvas height"
+					/>
+				</div>
+			)}
 
 			<PropertyItem direction="column">
 				<PropertyItemLabel>Frame rate</PropertyItemLabel>
