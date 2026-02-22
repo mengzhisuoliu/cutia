@@ -13,9 +13,10 @@ const webEnvSchema = z.object({
 	DATABASE_URL: z
 		.string()
 		.startsWith("postgres://")
-		.or(z.string().startsWith("postgresql://")),
+		.or(z.string().startsWith("postgresql://"))
+		.optional(),
 
-	BETTER_AUTH_SECRET: z.string(),
+	BETTER_AUTH_SECRET: z.string().optional(),
 	UPSTASH_REDIS_REST_URL: z.url(),
 	UPSTASH_REDIS_REST_TOKEN: z.string(),
 	FREESOUND_CLIENT_ID: z.string().optional(),
