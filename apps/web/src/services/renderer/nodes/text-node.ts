@@ -83,6 +83,27 @@ export class TextNode extends BaseNode<TextNodeParams> {
 			renderer.context.fillStyle = this.params.color;
 		}
 
+		if (this.params.shadow) {
+			renderer.context.shadowColor = this.params.shadow.color;
+			renderer.context.shadowOffsetX = this.params.shadow.offsetX;
+			renderer.context.shadowOffsetY = this.params.shadow.offsetY;
+			renderer.context.shadowBlur = this.params.shadow.blur;
+		}
+
+		if (this.params.stroke && this.params.stroke.width > 0) {
+			renderer.context.strokeStyle = this.params.stroke.color;
+			renderer.context.lineWidth = this.params.stroke.width * 2;
+			renderer.context.lineJoin = "round";
+			renderer.context.strokeText(this.params.content, 0, 0);
+		}
+
+		if (this.params.shadow) {
+			renderer.context.shadowColor = "transparent";
+			renderer.context.shadowBlur = 0;
+			renderer.context.shadowOffsetX = 0;
+			renderer.context.shadowOffsetY = 0;
+		}
+
 		renderer.context.fillText(this.params.content, 0, 0);
 
 		renderer.context.globalAlpha = prevAlpha;

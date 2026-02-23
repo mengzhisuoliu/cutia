@@ -4,7 +4,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { FontPicker } from "@/components/ui/font-picker";
 import { useTranslation } from "@i18next-toolkit/react";
 import type { FontFamily } from "@/constants/font-constants";
-import type { TextElement, Transform } from "@/types/timeline";
+import type { TextElement, TextStroke, TextShadow, Transform } from "@/types/timeline";
+import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -69,6 +70,10 @@ export function TextProperties({
 	const initialPosYRef = useRef<number | null>(null);
 	const initialScaleRef = useRef<number | null>(null);
 	const initialRotationRef = useRef<number | null>(null);
+	const initialStrokeRef = useRef<TextStroke | null>(null);
+	const initialShadowRef = useRef<TextShadow | null>(null);
+	const initialStrokeColorRef = useRef<string | null>(null);
+	const initialShadowColorRef = useRef<string | null>(null);
 
 	const scalePercent = Math.round(element.transform.scale * 100);
 	const posXDisplay = isEditingPosX.current
@@ -101,6 +106,37 @@ export function TextProperties({
 					},
 				},
 			],
+			pushHistory,
+		});
+	};
+
+	const strokeEnabled = !!element.stroke;
+	const currentStroke: TextStroke = element.stroke ?? { color: "#000000", width: 2 };
+	const shadowEnabled = !!element.shadow;
+	const currentShadow: TextShadow = element.shadow ?? { color: "#000000", offsetX: 2, offsetY: 2, blur: 4 };
+
+	const updateStroke = ({
+		stroke,
+		pushHistory = true,
+	}: {
+		stroke: TextStroke | undefined;
+		pushHistory?: boolean;
+	}) => {
+		editor.timeline.updateElements({
+			updates: [{ trackId, elementId: element.id, updates: { stroke } }],
+			pushHistory,
+		});
+	};
+
+	const updateShadow = ({
+		shadow,
+		pushHistory = true,
+	}: {
+		shadow: TextShadow | undefined;
+		pushHistory?: boolean;
+	}) => {
+		editor.timeline.updateElements({
+			updates: [{ trackId, elementId: element.id, updates: { shadow } }],
 			pushHistory,
 		});
 	};
@@ -695,7 +731,265 @@ export function TextProperties({
 						</PropertyItem>
 					</div>
 				</PropertyGroup>
-				<PropertyGroup title={t("Transform")}>
+				<PropertyGroup title={t("Stroke")} defaultExpanded={strokeEnabled}>
+					<div className="space-y-6">
+						<PropertyItem>
+							<PropertyItemLabel>{t("Enable")}</PropertyItemLabel>
+							<PropertyItemValue>
+								<Switch
+									checked={strokeEnabled}
+									onCheckedChange={(checked) => {
+										updateStroke({
+											stroke: checked ? { color: "#000000", width: 2 } : undefined,
+										});
+									}}
+								/>
+							</PropertyItemValue>
+						</PropertyItem>
+						{strokeEnabled && (
+							<>
+								<PropertyItem direction="column">
+									<PropertyItemLabel>{t("Color")}</PropertyItemLabel>
+									<PropertyItemValue>
+										<ColorPicker
+											value={uppercase({
+												string: currentStroke.color.replace("#", ""),
+											})}
+											onChange={(color) => {
+												if (initialStrokeColorRef.current === null) {
+													initialStrokeColorRef.current = currentStroke.color;
+												}
+												updateStroke({
+													stroke: { ...currentStroke, color: `#${color}` },
+													pushHistory: false,
+												});
+											}}
+											onChangeEnd={(color) => {
+												if (initialStrokeColorRef.current !== null) {
+													updateStroke({
+														stroke: { ...currentStroke, color: initialStrokeColorRef.current },
+														pushHistory: false,
+													});
+													updateStroke({
+														stroke: { ...currentStroke, color: `#${color}` },
+													});
+													initialStrokeColorRef.current = null;
+												}
+											}}
+											containerRef={containerRef}
+										/>
+									</PropertyItemValue>
+								</PropertyItem>
+								<PropertyItem direction="column">
+									<PropertyItemLabel>{t("Width")}</PropertyItemLabel>
+									<PropertyItemValue>
+										<div className="flex items-center gap-2">
+											<Slider
+												value={[currentStroke.width]}
+												min={1}
+												max={20}
+												step={1}
+												onValueChange={([value]) => {
+													if (initialStrokeRef.current === null) {
+														initialStrokeRef.current = { ...currentStroke };
+													}
+													updateStroke({
+														stroke: { ...currentStroke, width: value },
+														pushHistory: false,
+													});
+												}}
+												onValueCommit={([value]) => {
+													if (initialStrokeRef.current !== null) {
+														updateStroke({
+															stroke: initialStrokeRef.current,
+															pushHistory: false,
+														});
+														updateStroke({
+															stroke: { ...currentStroke, width: value },
+														});
+														initialStrokeRef.current = null;
+													}
+												}}
+												className="w-full"
+											/>
+											<span className="text-muted-foreground w-8 text-center text-xs">
+												{currentStroke.width}
+											</span>
+										</div>
+									</PropertyItemValue>
+								</PropertyItem>
+							</>
+						)}
+					</div>
+				</PropertyGroup>
+				<PropertyGroup title={t("Shadow")} defaultExpanded={shadowEnabled}>
+					<div className="space-y-6">
+						<PropertyItem>
+							<PropertyItemLabel>{t("Enable")}</PropertyItemLabel>
+							<PropertyItemValue>
+								<Switch
+									checked={shadowEnabled}
+									onCheckedChange={(checked) => {
+										updateShadow({
+											shadow: checked ? { color: "#000000", offsetX: 2, offsetY: 2, blur: 4 } : undefined,
+										});
+									}}
+								/>
+							</PropertyItemValue>
+						</PropertyItem>
+						{shadowEnabled && (
+							<>
+								<PropertyItem direction="column">
+									<PropertyItemLabel>{t("Color")}</PropertyItemLabel>
+									<PropertyItemValue>
+										<ColorPicker
+											value={uppercase({
+												string: currentShadow.color.replace("#", ""),
+											})}
+											onChange={(color) => {
+												if (initialShadowColorRef.current === null) {
+													initialShadowColorRef.current = currentShadow.color;
+												}
+												updateShadow({
+													shadow: { ...currentShadow, color: `#${color}` },
+													pushHistory: false,
+												});
+											}}
+											onChangeEnd={(color) => {
+												if (initialShadowColorRef.current !== null) {
+													updateShadow({
+														shadow: { ...currentShadow, color: initialShadowColorRef.current },
+														pushHistory: false,
+													});
+													updateShadow({
+														shadow: { ...currentShadow, color: `#${color}` },
+													});
+													initialShadowColorRef.current = null;
+												}
+											}}
+											containerRef={containerRef}
+										/>
+									</PropertyItemValue>
+								</PropertyItem>
+								<PropertyItem direction="column">
+									<PropertyItemLabel>{t("Offset X")}</PropertyItemLabel>
+									<PropertyItemValue>
+										<div className="flex items-center gap-2">
+											<Slider
+												value={[currentShadow.offsetX]}
+												min={-20}
+												max={20}
+												step={1}
+												onValueChange={([value]) => {
+													if (initialShadowRef.current === null) {
+														initialShadowRef.current = { ...currentShadow };
+													}
+													updateShadow({
+														shadow: { ...currentShadow, offsetX: value },
+														pushHistory: false,
+													});
+												}}
+												onValueCommit={([value]) => {
+													if (initialShadowRef.current !== null) {
+														updateShadow({
+															shadow: initialShadowRef.current,
+															pushHistory: false,
+														});
+														updateShadow({
+															shadow: { ...currentShadow, offsetX: value },
+														});
+														initialShadowRef.current = null;
+													}
+												}}
+												className="w-full"
+											/>
+											<span className="text-muted-foreground w-8 text-center text-xs">
+												{currentShadow.offsetX}
+											</span>
+										</div>
+									</PropertyItemValue>
+								</PropertyItem>
+								<PropertyItem direction="column">
+									<PropertyItemLabel>{t("Offset Y")}</PropertyItemLabel>
+									<PropertyItemValue>
+										<div className="flex items-center gap-2">
+											<Slider
+												value={[currentShadow.offsetY]}
+												min={-20}
+												max={20}
+												step={1}
+												onValueChange={([value]) => {
+													if (initialShadowRef.current === null) {
+														initialShadowRef.current = { ...currentShadow };
+													}
+													updateShadow({
+														shadow: { ...currentShadow, offsetY: value },
+														pushHistory: false,
+													});
+												}}
+												onValueCommit={([value]) => {
+													if (initialShadowRef.current !== null) {
+														updateShadow({
+															shadow: initialShadowRef.current,
+															pushHistory: false,
+														});
+														updateShadow({
+															shadow: { ...currentShadow, offsetY: value },
+														});
+														initialShadowRef.current = null;
+													}
+												}}
+												className="w-full"
+											/>
+											<span className="text-muted-foreground w-8 text-center text-xs">
+												{currentShadow.offsetY}
+											</span>
+										</div>
+									</PropertyItemValue>
+								</PropertyItem>
+								<PropertyItem direction="column">
+									<PropertyItemLabel>{t("Blur")}</PropertyItemLabel>
+									<PropertyItemValue>
+										<div className="flex items-center gap-2">
+											<Slider
+												value={[currentShadow.blur]}
+												min={0}
+												max={30}
+												step={1}
+												onValueChange={([value]) => {
+													if (initialShadowRef.current === null) {
+														initialShadowRef.current = { ...currentShadow };
+													}
+													updateShadow({
+														shadow: { ...currentShadow, blur: value },
+														pushHistory: false,
+													});
+												}}
+												onValueCommit={([value]) => {
+													if (initialShadowRef.current !== null) {
+														updateShadow({
+															shadow: initialShadowRef.current,
+															pushHistory: false,
+														});
+														updateShadow({
+															shadow: { ...currentShadow, blur: value },
+														});
+														initialShadowRef.current = null;
+													}
+												}}
+												className="w-full"
+											/>
+											<span className="text-muted-foreground w-8 text-center text-xs">
+												{currentShadow.blur}
+											</span>
+										</div>
+									</PropertyItemValue>
+								</PropertyItem>
+							</>
+						)}
+					</div>
+				</PropertyGroup>
+			<PropertyGroup title={t("Transform")}>
 					<div className="space-y-6">
 						<PropertyItem>
 							<PropertyItemLabel>{t("Position X")}</PropertyItemLabel>

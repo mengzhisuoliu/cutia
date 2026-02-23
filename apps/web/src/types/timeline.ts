@@ -124,6 +124,18 @@ export interface ImageElement extends BaseTimelineElement {
 	opacity: number;
 }
 
+export interface TextStroke {
+	color: string;
+	width: number;
+}
+
+export interface TextShadow {
+	color: string;
+	offsetX: number;
+	offsetY: number;
+	blur: number;
+}
+
 export interface TextElement extends BaseTimelineElement {
 	type: "text";
 	content: string;
@@ -138,6 +150,8 @@ export interface TextElement extends BaseTimelineElement {
 	hidden?: boolean;
 	transform: Transform;
 	opacity: number;
+	stroke?: TextStroke;
+	shadow?: TextShadow;
 }
 
 export interface StickerElement extends BaseTimelineElement {

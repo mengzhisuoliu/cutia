@@ -176,6 +176,12 @@ export function TextView() {
 											preset.transform.rotate !== 0
 												? `rotate(${preset.transform.rotate}deg)`
 												: undefined,
+										WebkitTextStroke: preset.stroke
+											? `${Math.max(preset.stroke.width * 0.3, 0.5)}px ${preset.stroke.color}`
+											: undefined,
+										textShadow: preset.shadow
+											? `${preset.shadow.offsetX}px ${preset.shadow.offsetY}px ${preset.shadow.blur}px ${preset.shadow.color}`
+											: undefined,
 									}}
 								>
 									{preset.content}

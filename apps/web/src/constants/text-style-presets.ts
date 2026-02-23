@@ -1,4 +1,4 @@
-import type { TextElement } from "@/types/timeline";
+import type { TextElement, TextStroke, TextShadow } from "@/types/timeline";
 import { TIMELINE_CONSTANTS } from "./timeline-constants";
 
 export type TextStyleCategory =
@@ -47,6 +47,8 @@ function buildPreset({
 	y = 0,
 	rotate = 0,
 	scale = 1,
+	stroke,
+	shadow,
 }: {
 	presetId: string;
 	presetName: string;
@@ -65,6 +67,8 @@ function buildPreset({
 	y?: number;
 	rotate?: number;
 	scale?: number;
+	stroke?: TextStroke;
+	shadow?: TextShadow;
 }): TextStylePreset {
 	return {
 		presetId,
@@ -87,6 +91,8 @@ function buildPreset({
 			position: { x, y },
 			rotate,
 		},
+		stroke,
+		shadow,
 	};
 }
 
@@ -109,6 +115,7 @@ export const TEXT_STYLE_PRESETS: TextStylePreset[] = [
 		fontSize: 14,
 		backgroundColor: "rgba(0, 0, 0, 0.8)",
 		fontWeight: "bold",
+		shadow: { color: "rgba(0, 0, 0, 0.6)", offsetX: 3, offsetY: 3, blur: 6 },
 	}),
 	buildPreset({
 		presetId: "pop-neon-pink",
@@ -119,6 +126,7 @@ export const TEXT_STYLE_PRESETS: TextStylePreset[] = [
 		fontFamily: "Impact",
 		color: "#ff00ff",
 		fontWeight: "bold",
+		shadow: { color: "#ff00ff", offsetX: 0, offsetY: 0, blur: 12 },
 	}),
 	buildPreset({
 		presetId: "pop-yellow-highlight",
@@ -148,6 +156,7 @@ export const TEXT_STYLE_PRESETS: TextStylePreset[] = [
 		content: "Subtitle text",
 		fontSize: 11,
 		y: 350,
+		stroke: { color: "#000000", width: 1 },
 	}),
 	buildPreset({
 		presetId: "sub-bold-stroke",
@@ -158,6 +167,7 @@ export const TEXT_STYLE_PRESETS: TextStylePreset[] = [
 		fontFamily: "Impact",
 		fontWeight: "bold",
 		y: 350,
+		stroke: { color: "#000000", width: 3 },
 	}),
 	buildPreset({
 		presetId: "sub-yellow",
@@ -279,6 +289,7 @@ export const TEXT_STYLE_PRESETS: TextStylePreset[] = [
 		fontFamily: "Impact",
 		color: "#00ffff",
 		fontWeight: "bold",
+		shadow: { color: "#00ffff", offsetX: 0, offsetY: 0, blur: 15 },
 	}),
 	buildPreset({
 		presetId: "creative-neon-green",
@@ -289,6 +300,7 @@ export const TEXT_STYLE_PRESETS: TextStylePreset[] = [
 		fontFamily: "Impact",
 		color: "#00ff00",
 		fontWeight: "bold",
+		shadow: { color: "#00ff00", offsetX: 0, offsetY: 0, blur: 15 },
 	}),
 	buildPreset({
 		presetId: "creative-retro",

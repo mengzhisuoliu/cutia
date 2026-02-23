@@ -144,6 +144,8 @@ export function buildTextElement({
 		textDecoration: t.textDecoration ?? DEFAULT_TEXT_ELEMENT.textDecoration,
 		transform: t.transform ?? DEFAULT_TEXT_ELEMENT.transform,
 		opacity: t.opacity ?? DEFAULT_TEXT_ELEMENT.opacity,
+		stroke: t.stroke,
+		shadow: t.shadow,
 	};
 }
 
