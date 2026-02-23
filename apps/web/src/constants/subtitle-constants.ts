@@ -16,7 +16,7 @@ export const SUBTITLE_TEMPLATES: SubtitleTemplate[] = [
 		type: "text",
 		name: "Subtitle",
 		content: "Your subtitle here",
-		fontSize: 18,
+		fontSize: 5,
 		fontFamily: "Arial",
 		color: "#ffffff",
 		backgroundColor: "rgba(0, 0, 0, 0.7)",
@@ -33,7 +33,7 @@ export const SUBTITLE_TEMPLATES: SubtitleTemplate[] = [
 		type: "text",
 		name: "Subtitle",
 		content: "Your subtitle here",
-		fontSize: 20,
+		fontSize: 5,
 		fontFamily: "Inter",
 		color: "#ffffff",
 		backgroundColor: "transparent",
@@ -50,7 +50,7 @@ export const SUBTITLE_TEMPLATES: SubtitleTemplate[] = [
 		type: "text",
 		name: "Subtitle",
 		content: "Your subtitle here",
-		fontSize: 16,
+		fontSize: 5,
 		fontFamily: "Helvetica",
 		color: "#ffffff",
 		backgroundColor: "transparent",
@@ -67,7 +67,7 @@ export const SUBTITLE_TEMPLATES: SubtitleTemplate[] = [
 		type: "text",
 		name: "Subtitle",
 		content: "Your subtitle here",
-		fontSize: 18,
+		fontSize: 5,
 		fontFamily: "Arial",
 		color: "#ffff00",
 		backgroundColor: "rgba(0, 0, 0, 0.85)",
@@ -84,7 +84,7 @@ export const SUBTITLE_TEMPLATES: SubtitleTemplate[] = [
 		type: "text",
 		name: "Subtitle",
 		content: "Your subtitle here",
-		fontSize: 17,
+		fontSize: 5,
 		fontFamily: "Arial",
 		color: "#ffffff",
 		backgroundColor: "rgba(0, 100, 200, 0.9)",
@@ -101,7 +101,7 @@ export const SUBTITLE_TEMPLATES: SubtitleTemplate[] = [
 		type: "text",
 		name: "Subtitle",
 		content: "Your subtitle here",
-		fontSize: 22,
+		fontSize: 6,
 		fontFamily: "Impact",
 		color: "#00ffff",
 		backgroundColor: "transparent",
@@ -118,7 +118,7 @@ export const SUBTITLE_TEMPLATES: SubtitleTemplate[] = [
 		type: "text",
 		name: "Subtitle",
 		content: "Your subtitle here",
-		fontSize: 16,
+		fontSize: 5,
 		fontFamily: "Georgia",
 		color: "#ffffff",
 		backgroundColor: "transparent",
@@ -135,7 +135,7 @@ export const SUBTITLE_TEMPLATES: SubtitleTemplate[] = [
 		type: "text",
 		name: "Subtitle",
 		content: "Your subtitle here",
-		fontSize: 18,
+		fontSize: 5,
 		fontFamily: "Arial",
 		color: "#ffffff",
 		backgroundColor: "rgba(0, 0, 0, 0.6)",
@@ -155,7 +155,11 @@ export function createSubtitleFromTemplate({
 	template: SubtitleTemplate;
 	startTime?: number;
 }): Omit<TextElement, "id"> {
-	const { templateId: _templateId, templateName: _templateName, ...elementProps } = template;
+	const {
+		templateId: _templateId,
+		templateName: _templateName,
+		...elementProps
+	} = template;
 	return {
 		...elementProps,
 		duration: TIMELINE_CONSTANTS.DEFAULT_ELEMENT_DURATION,

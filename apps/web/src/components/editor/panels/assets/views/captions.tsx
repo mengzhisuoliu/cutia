@@ -14,6 +14,7 @@ import { useEditor } from "@/hooks/use-editor";
 import { TRANSCRIPTION_LANGUAGES } from "@/constants/transcription-constants";
 import {
 	SUBTITLE_TEMPLATES,
+	createSubtitleFromTemplate,
 	type SubtitleTemplate,
 } from "@/constants/subtitle-constants";
 import type {
@@ -80,18 +81,17 @@ export function Captions() {
 				index: 0,
 			});
 
-			const {
-				templateId: _templateId,
-				templateName: _templateName,
-				...templateStyle
-			} = selectedTemplate;
+			const baseCaptionElement = createSubtitleFromTemplate({
+				template: selectedTemplate,
+				startTime: 0,
+			});
 
 			for (let i = 0; i < captionChunks.length; i++) {
 				const caption = captionChunks[i];
 				editor.timeline.insertElement({
 					placement: { mode: "explicit", trackId: captionTrackId },
 					element: {
-						...templateStyle,
+						...baseCaptionElement,
 						name: `Caption ${i + 1}`,
 						content: caption.text,
 						duration: caption.duration,
