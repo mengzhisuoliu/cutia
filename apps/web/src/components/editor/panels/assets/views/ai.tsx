@@ -26,6 +26,7 @@ import { useAISettingsStore } from "@/stores/ai-settings-store";
 import { useAssetsPanelStore } from "@/stores/assets-panel-store";
 import { cn } from "@/utils/ui";
 import {
+	ArrowUpRight01Icon,
 	ImageAdd01Icon,
 	Loading03Icon,
 	Settings01Icon,
@@ -286,6 +287,33 @@ function AssetStatusBadge({
 	return null;
 }
 
+function OpenInNewWindowButton({ url }: { url: string }) {
+	const { t } = useTranslation();
+
+	return (
+		<button
+			type="button"
+			className="absolute bottom-1 right-1 rounded-full bg-black/60 p-1 opacity-0 transition-opacity hover:bg-black/80 group-hover:opacity-100"
+			title={t("Open in new window")}
+			onClick={(event) => {
+				event.stopPropagation();
+				window.open(url, "_blank", "noopener,noreferrer");
+			}}
+			onKeyDown={(event) => {
+				if (event.key === "Enter") {
+					event.stopPropagation();
+					window.open(url, "_blank", "noopener,noreferrer");
+				}
+			}}
+		>
+			<HugeiconsIcon
+				icon={ArrowUpRight01Icon}
+				className="size-3.5 text-white"
+			/>
+		</button>
+	);
+}
+
 function GeneratedImageCard({ image }: { image: GeneratedImage }) {
 	const [isLoaded, setIsLoaded] = useState(false);
 	const [hasError, setHasError] = useState(false);
@@ -326,6 +354,7 @@ function GeneratedImageCard({ image }: { image: GeneratedImage }) {
 					status={image.assetStatus}
 					onRetry={handleRetry}
 				/>
+				{isLoaded && <OpenInNewWindowButton url={image.url} />}
 			</div>
 		</div>
 	);
@@ -603,7 +632,7 @@ function GeneratedVideoCard({ video }: { video: GeneratedVideo }) {
 			</p>
 
 			{video.videoUrl && (
-				<div className="mb-2 overflow-hidden rounded">
+				<div className="group/video relative mb-2 overflow-hidden rounded">
 					<video
 						src={video.videoUrl}
 						controls
@@ -612,6 +641,26 @@ function GeneratedVideoCard({ video }: { video: GeneratedVideo }) {
 					>
 						<track kind="captions" />
 					</video>
+					<button
+						type="button"
+						className="absolute top-1 right-1 rounded-full bg-black/60 p-1 opacity-0 transition-opacity hover:bg-black/80 group-hover/video:opacity-100"
+						title={t("Open in new window")}
+						onClick={(event) => {
+							event.stopPropagation();
+							window.open(video.videoUrl, "_blank", "noopener,noreferrer");
+						}}
+						onKeyDown={(event) => {
+							if (event.key === "Enter") {
+								event.stopPropagation();
+								window.open(video.videoUrl, "_blank", "noopener,noreferrer");
+							}
+						}}
+					>
+						<HugeiconsIcon
+							icon={ArrowUpRight01Icon}
+							className="size-3.5 text-white"
+						/>
+					</button>
 				</div>
 			)}
 
