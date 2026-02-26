@@ -142,18 +142,29 @@ export function AgentChat() {
 				{status === "awaiting-confirmation" && pendingConfirmation && (
 					<div className="bg-muted rounded-lg border p-3">
 						<p className="mb-2 text-sm font-medium">
-							{t("Confirm operation")}
+							{pendingConfirmation.toolCalls.length > 1
+								? t("Confirm {{count}} operations", {
+										count: pendingConfirmation.toolCalls
+											.length,
+									})
+								: t("Confirm operation")}
 						</p>
-						<p className="text-muted-foreground mb-1 text-xs">
-							{pendingConfirmation.description}
-						</p>
-						<pre className="bg-background mb-3 overflow-x-auto rounded p-2 text-xs">
-							{JSON.stringify(
-								pendingConfirmation.arguments,
-								null,
-								2,
-							)}
-						</pre>
+						<div className="mb-3 space-y-2">
+							{pendingConfirmation.toolCalls.map((tc) => (
+								<div key={tc.toolCallId}>
+									<p className="text-muted-foreground mb-1 text-xs">
+										{tc.description}
+									</p>
+									<pre className="bg-background overflow-x-auto rounded p-2 text-xs">
+										{JSON.stringify(
+											tc.arguments,
+											null,
+											2,
+										)}
+									</pre>
+								</div>
+							))}
+						</div>
 						<div className="flex gap-2">
 							<Button
 								type="button"
@@ -164,7 +175,9 @@ export function AgentChat() {
 									icon={CheckmarkCircle02Icon}
 									className="mr-1 h-3.5 w-3.5"
 								/>
-								{t("Confirm")}
+								{pendingConfirmation.toolCalls.length > 1
+									? t("Confirm all")
+									: t("Confirm")}
 							</Button>
 							<Button
 								type="button"

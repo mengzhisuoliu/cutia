@@ -50,11 +50,15 @@ export type AgentStatus =
 	| "awaiting-confirmation"
 	| "error";
 
-export interface PendingToolConfirmation {
+export interface PendingToolConfirmationItem {
 	toolCallId: string;
 	toolName: string;
 	arguments: Record<string, unknown>;
 	description: string;
+}
+
+export interface PendingToolConfirmation {
+	toolCalls: PendingToolConfirmationItem[];
 }
 
 export interface OpenAIChatMessage {

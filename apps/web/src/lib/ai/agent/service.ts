@@ -2,6 +2,7 @@ import { generateUUID } from "@/utils/id";
 import { streamChatCompletion } from "./llm-client";
 import { buildSystemPrompt } from "./system-prompt";
 import { getAllToolSchemas, getToolByName } from "./tools";
+import type { AgentTool } from "./tools/types";
 import type {
 	AgentLLMConfig,
 	AgentMessage,
@@ -70,6 +71,119 @@ function agentMessagesToOpenAI({
 				content: m.content,
 			};
 		});
+}
+
+interface ToolCallEntry {
+	rawToolCall: { id: string; name: string; arguments: string };
+	parsedArgs: Record<string, unknown>;
+	tool: AgentTool | undefined;
+}
+
+function pushToolResult({
+	conversationMessages,
+	callbacks,
+	toolCallId,
+	toolName,
+	result,
+}: {
+	conversationMessages: AgentMessage[];
+	callbacks: AgentServiceCallbacks;
+	toolCallId: string;
+	toolName: string;
+	result: AgentToolResult;
+}): void {
+	conversationMessages.push({
+		id: generateUUID(),
+		role: "tool",
+		content: JSON.stringify(result),
+		toolCallId,
+		toolName,
+		timestamp: Date.now(),
+	});
+	callbacks.onMessagesUpdated(conversationMessages);
+	callbacks.onToolCallResult({ id: toolCallId, name: toolName, result });
+}
+
+async function executeAndPushResult({
+	tool,
+	parsedArgs,
+	rawToolCall,
+	conversationMessages,
+	callbacks,
+}: {
+	tool: AgentTool;
+	parsedArgs: Record<string, unknown>;
+	rawToolCall: { id: string; name: string };
+	conversationMessages: AgentMessage[];
+	callbacks: AgentServiceCallbacks;
+}): Promise<void> {
+	let result: AgentToolResult;
+	try {
+		result = await tool.execute(parsedArgs);
+	} catch (error) {
+		result = {
+			success: false,
+			message:
+				error instanceof Error
+					? error.message
+					: "Tool execution failed",
+		};
+	}
+	pushToolResult({
+		conversationMessages,
+		callbacks,
+		toolCallId: rawToolCall.id,
+		toolName: rawToolCall.name,
+		result,
+	});
+}
+
+async function executeToolCallBatch({
+	batch,
+	conversationMessages,
+	callbacks,
+}: {
+	batch: ToolCallEntry[];
+	conversationMessages: AgentMessage[];
+	callbacks: AgentServiceCallbacks;
+}): Promise<void> {
+	const settled = await Promise.all(
+		batch
+			.filter(
+				(entry): entry is ToolCallEntry & { tool: AgentTool } =>
+					entry.tool != null,
+			)
+			.map(async ({ rawToolCall, parsedArgs, tool }) => {
+				callbacks.onToolCallStart({
+					id: rawToolCall.id,
+					name: rawToolCall.name,
+					arguments: parsedArgs,
+				});
+				let result: AgentToolResult;
+				try {
+					result = await tool.execute(parsedArgs);
+				} catch (error) {
+					result = {
+						success: false,
+						message:
+							error instanceof Error
+								? error.message
+								: "Tool execution failed",
+					};
+				}
+				return { rawToolCall, result };
+			}),
+	);
+
+	for (const { rawToolCall, result } of settled) {
+		pushToolResult({
+			conversationMessages,
+			callbacks,
+			toolCallId: rawToolCall.id,
+			toolName: rawToolCall.name,
+			result,
+		});
+	}
 }
 
 export async function runAgentLoop({
@@ -141,111 +255,118 @@ export async function runAgentLoop({
 			break;
 		}
 
-		for (const toolCall of result.toolCalls) {
-			if (signal.aborted) break;
+		const toolCallEntries = result.toolCalls.map((rawToolCall) => ({
+			rawToolCall,
+			parsedArgs: JSON.parse(rawToolCall.arguments || "{}") as Record<
+				string,
+				unknown
+			>,
+			tool: getToolByName({ name: rawToolCall.name }),
+		}));
 
-			const parsedArgs = JSON.parse(toolCall.arguments || "{}");
-			const tool = getToolByName({ name: toolCall.name });
+		const confirmableEntries = toolCallEntries.filter(
+			(
+				entry,
+			): entry is ToolCallEntry & { tool: AgentTool } =>
+				entry.tool?.requiresConfirmation === true && !autoMode,
+		);
+
+		const confirmedIds = new Set<string>();
+		if (confirmableEntries.length > 0) {
+			const userConfirmed = await callbacks.onConfirmationRequired({
+				toolCalls: confirmableEntries.map(
+					({ rawToolCall, parsedArgs, tool }) => ({
+						toolCallId: rawToolCall.id,
+						toolName: rawToolCall.name,
+						arguments: parsedArgs,
+						description: tool.description,
+					}),
+				),
+			});
+			if (userConfirmed) {
+				for (const { rawToolCall } of confirmableEntries) {
+					confirmedIds.add(rawToolCall.id);
+				}
+			}
+		}
+
+		let entryIndex = 0;
+		while (entryIndex < toolCallEntries.length && !signal.aborted) {
+			const entry = toolCallEntries[entryIndex];
+			const { rawToolCall, parsedArgs, tool } = entry;
 
 			if (!tool) {
-				const errorResult: AgentToolResult = {
-					success: false,
-					message: `Unknown tool: ${toolCall.name}`,
-				};
-				conversationMessages.push({
-					id: generateUUID(),
-					role: "tool",
-					content: JSON.stringify(errorResult),
-					toolCallId: toolCall.id,
-					toolName: toolCall.name,
-					timestamp: Date.now(),
+				pushToolResult({
+					conversationMessages,
+					callbacks,
+					toolCallId: rawToolCall.id,
+					toolName: rawToolCall.name,
+					result: {
+						success: false,
+						message: `Unknown tool: ${rawToolCall.name}`,
+					},
 				});
-				callbacks.onMessagesUpdated(conversationMessages);
-				callbacks.onToolCallResult({
-					id: toolCall.id,
-					name: toolCall.name,
-					result: errorResult,
+				entryIndex++;
+				continue;
+			}
+
+			const needsConfirmation =
+				tool.requiresConfirmation && !autoMode;
+
+			if (needsConfirmation && !confirmedIds.has(rawToolCall.id)) {
+				pushToolResult({
+					conversationMessages,
+					callbacks,
+					toolCallId: rawToolCall.id,
+					toolName: rawToolCall.name,
+					result: {
+						success: false,
+						message:
+							"User skipped this operation. Please continue with alternative approaches or ask the user for guidance.",
+					},
 				});
+				entryIndex++;
+				continue;
+			}
+
+			if (needsConfirmation && confirmedIds.has(rawToolCall.id)) {
+				const batch = [entry];
+				let nextIndex = entryIndex + 1;
+				while (nextIndex < toolCallEntries.length) {
+					const next = toolCallEntries[nextIndex];
+					const nextNeedsConfirm =
+						next.tool?.requiresConfirmation && !autoMode;
+					if (
+						!nextNeedsConfirm ||
+						!confirmedIds.has(next.rawToolCall.id)
+					)
+						break;
+					batch.push(next);
+					nextIndex++;
+				}
+
+				await executeToolCallBatch({
+					batch,
+					conversationMessages,
+					callbacks,
+				});
+				entryIndex = nextIndex;
 				continue;
 			}
 
 			callbacks.onToolCallStart({
-				id: toolCall.id,
-				name: toolCall.name,
+				id: rawToolCall.id,
+				name: rawToolCall.name,
 				arguments: parsedArgs,
 			});
-
-			if (tool.requiresConfirmation && !autoMode) {
-				const confirmed = await callbacks.onConfirmationRequired({
-					toolCallId: toolCall.id,
-					toolName: toolCall.name,
-					arguments: parsedArgs,
-					description: tool.description,
-				});
-
-				if (!confirmed) {
-					const skipResult: AgentToolResult = {
-						success: false,
-						message:
-							"User skipped this operation. Please continue with alternative approaches or ask the user for guidance.",
-					};
-					conversationMessages.push({
-						id: generateUUID(),
-						role: "tool",
-						content: JSON.stringify(skipResult),
-						toolCallId: toolCall.id,
-						toolName: toolCall.name,
-						timestamp: Date.now(),
-					});
-					callbacks.onMessagesUpdated(conversationMessages);
-					callbacks.onToolCallResult({
-						id: toolCall.id,
-						name: toolCall.name,
-						result: skipResult,
-					});
-					continue;
-				}
-			}
-
-			try {
-				const toolResult = await tool.execute(parsedArgs);
-				conversationMessages.push({
-					id: generateUUID(),
-					role: "tool",
-					content: JSON.stringify(toolResult),
-					toolCallId: toolCall.id,
-					toolName: toolCall.name,
-					timestamp: Date.now(),
-				});
-				callbacks.onMessagesUpdated(conversationMessages);
-				callbacks.onToolCallResult({
-					id: toolCall.id,
-					name: toolCall.name,
-					result: toolResult,
-				});
-			} catch (error) {
-				const errorResult: AgentToolResult = {
-					success: false,
-					message:
-						error instanceof Error
-							? error.message
-							: "Tool execution failed",
-				};
-				conversationMessages.push({
-					id: generateUUID(),
-					role: "tool",
-					content: JSON.stringify(errorResult),
-					toolCallId: toolCall.id,
-					toolName: toolCall.name,
-					timestamp: Date.now(),
-				});
-				callbacks.onMessagesUpdated(conversationMessages);
-				callbacks.onToolCallResult({
-					id: toolCall.id,
-					name: toolCall.name,
-					result: errorResult,
-				});
-			}
+			await executeAndPushResult({
+				tool,
+				parsedArgs,
+				rawToolCall,
+				conversationMessages,
+				callbacks,
+			});
+			entryIndex++;
 		}
 	}
 
