@@ -32,7 +32,9 @@ import { useAssetsPanelStore } from "@/stores/assets-panel-store";
 import { cn } from "@/utils/ui";
 import {
 	ArrowUpRight01Icon,
+	Cancel01Icon,
 	Delete02Icon,
+	Image01Icon,
 	ImageAdd01Icon,
 	Loading03Icon,
 	Settings01Icon,
@@ -73,6 +75,91 @@ const VIDEO_RESOLUTIONS = [
 	{ value: "1080p", label: "1080p" },
 ] as const;
 
+function ReferenceImagePicker({
+	previewUrl,
+	disabled,
+	onSelect,
+	onClear,
+}: {
+	previewUrl: string | null;
+	disabled: boolean;
+	onSelect: (file: File) => void;
+	onClear: () => void;
+}) {
+	const { t } = useTranslation();
+
+	const handleFileSelect = useCallback(() => {
+		const input = document.createElement("input");
+		input.type = "file";
+		input.accept = "image/png,image/jpeg,image/webp,image/gif";
+		input.addEventListener("change", () => {
+			const file = input.files?.[0];
+			if (file) onSelect(file);
+		});
+		input.click();
+	}, [onSelect]);
+
+	if (previewUrl) {
+		return (
+			<div className="group/ref relative">
+				<button
+					type="button"
+					className="bg-muted/50 flex w-full items-center gap-2 overflow-hidden rounded-md border p-1.5"
+					onClick={handleFileSelect}
+					onKeyDown={(event) => {
+						if (event.key === "Enter") handleFileSelect();
+					}}
+					disabled={disabled}
+				>
+					{/* biome-ignore lint: local blob URL */}
+					<img
+						src={previewUrl}
+						alt={t("Reference image")}
+						className="size-10 rounded object-cover"
+					/>
+					<span className="text-muted-foreground truncate text-xs">
+						{t("Reference image")}
+					</span>
+				</button>
+				<button
+					type="button"
+					className="absolute top-0.5 right-0.5 rounded-full bg-black/60 p-0.5 opacity-0 transition-opacity hover:bg-black/80 group-hover/ref:opacity-100"
+					title={t("Remove reference image")}
+					onClick={(event) => {
+						event.stopPropagation();
+						onClear();
+					}}
+					onKeyDown={(event) => {
+						if (event.key === "Enter") {
+							event.stopPropagation();
+							onClear();
+						}
+					}}
+				>
+					<HugeiconsIcon icon={Cancel01Icon} className="size-3 text-white" />
+				</button>
+			</div>
+		);
+	}
+
+	return (
+		<button
+			type="button"
+			className="bg-muted/30 hover:bg-muted/60 flex w-full items-center gap-2 rounded-md border border-dashed p-2 transition-colors"
+			onClick={handleFileSelect}
+			onKeyDown={(event) => {
+				if (event.key === "Enter") handleFileSelect();
+			}}
+			disabled={disabled}
+		>
+			<HugeiconsIcon icon={Image01Icon} className="text-muted-foreground size-4" />
+			<span className="text-muted-foreground text-xs">
+				{t("Add reference image (optional)")}
+			</span>
+		</button>
+	);
+}
+
 function AIImageView() {
 	const { t } = useTranslation();
 	const { imageProviderId, imageApiKey } = useAISettingsStore();
@@ -81,10 +168,12 @@ function AIImageView() {
 	const {
 		prompt,
 		aspectRatio,
+		referenceImagePreview,
 		isGenerating,
 		generatedImages,
 		setPrompt,
 		setAspectRatio,
+		setReferenceImage,
 		generate,
 	} = useAIImageGenerationStore();
 
@@ -140,6 +229,13 @@ function AIImageView() {
 							generate();
 						}
 					}}
+				/>
+
+				<ReferenceImagePicker
+					previewUrl={referenceImagePreview}
+					disabled={isGenerating}
+					onSelect={(file) => setReferenceImage(file)}
+					onClear={() => setReferenceImage(null)}
 				/>
 
 				<div className="flex items-center gap-2">
@@ -359,12 +455,14 @@ function AIVideoView() {
 		duration,
 		aspectRatio: videoAspectRatio,
 		resolution,
+		referenceImagePreview,
 		isGenerating,
 		generatedVideos,
 		setPrompt,
 		setDuration,
 		setAspectRatio: setVideoAspectRatio,
 		setResolution,
+		setReferenceImage,
 		generate,
 	} = useAIVideoGenerationStore();
 
@@ -420,6 +518,13 @@ function AIVideoView() {
 							generate();
 						}
 					}}
+				/>
+
+				<ReferenceImagePicker
+					previewUrl={referenceImagePreview}
+					disabled={isGenerating}
+					onSelect={(file) => setReferenceImage(file)}
+					onClear={() => setReferenceImage(null)}
 				/>
 
 				<div className="flex items-center gap-2">

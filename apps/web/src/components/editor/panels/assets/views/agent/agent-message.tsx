@@ -34,14 +34,14 @@ export function AgentMessage({
 		<div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
 			<div
 				className={cn(
-					"max-w-[85%] rounded-lg px-3 py-2 text-sm",
+					"max-w-[85%] rounded-lg px-3 py-1.5 text-sm",
 					isUser ? "bg-primary text-primary-foreground" : "bg-muted",
 				)}
 			>
 				{isUser ? (
 					<p className="whitespace-pre-wrap">{displayContent}</p>
 				) : (
-					<div className="prose prose-sm dark:prose-invert max-w-none">
+					<div className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 prose-p:my-1.5">
 						<Streamdown
 							mode={isStreaming ? "streaming" : "static"}
 							isAnimating={isStreaming}

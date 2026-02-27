@@ -6,6 +6,7 @@ import { getVideoProvider } from "@/lib/ai/providers";
 import type { VideoTaskStatus } from "@/lib/ai/providers/types";
 import { pollVideoTask } from "@/lib/ai/providers/seedance";
 import { processMediaAssets } from "@/lib/media/processing";
+import { uploadReferenceImage } from "@/lib/media/upload-reference";
 import { fetchWithProxyFallback } from "@/lib/media/url-import";
 import { useAISettingsStore } from "./ai-settings-store";
 import { useAIGenerationHistoryStore } from "./ai-generation-history-store";
@@ -28,6 +29,8 @@ interface AIVideoGenerationState {
 	duration: number;
 	aspectRatio: string;
 	resolution: string;
+	referenceImage: File | null;
+	referenceImagePreview: string | null;
 	isGenerating: boolean;
 	generatedVideos: GeneratedVideo[];
 
@@ -35,6 +38,7 @@ interface AIVideoGenerationState {
 	setDuration: (duration: number) => void;
 	setAspectRatio: (aspectRatio: string) => void;
 	setResolution: (resolution: string) => void;
+	setReferenceImage: (file: File | null) => void;
 	generate: () => Promise<void>;
 	retryAddToAssets: (videoId: string) => void;
 	clearVideos: () => void;
@@ -99,6 +103,8 @@ export const useAIVideoGenerationStore = create<AIVideoGenerationState>()(
 		duration: 5,
 		aspectRatio: "16:9",
 		resolution: "720p",
+		referenceImage: null,
+		referenceImagePreview: null,
 		isGenerating: false,
 		generatedVideos: [],
 
@@ -106,6 +112,16 @@ export const useAIVideoGenerationStore = create<AIVideoGenerationState>()(
 		setDuration: (duration) => set({ duration }),
 		setAspectRatio: (aspectRatio) => set({ aspectRatio }),
 		setResolution: (resolution) => set({ resolution }),
+		setReferenceImage: (file) => {
+			const prev = get().referenceImagePreview;
+			if (prev) URL.revokeObjectURL(prev);
+
+			if (file) {
+				set({ referenceImage: file, referenceImagePreview: URL.createObjectURL(file) });
+			} else {
+				set({ referenceImage: null, referenceImagePreview: null });
+			}
+		},
 
 		generate: async () => {
 			if (get().isGenerating) return;
@@ -128,7 +144,7 @@ export const useAIVideoGenerationStore = create<AIVideoGenerationState>()(
 				return;
 			}
 
-			const { prompt, duration, aspectRatio, resolution } = get();
+			const { prompt, duration, aspectRatio, resolution, referenceImage } = get();
 			const trimmedPrompt = prompt.trim();
 			if (!trimmedPrompt) {
 				toast.error(i18next.t("Please enter a prompt"));
@@ -138,12 +154,18 @@ export const useAIVideoGenerationStore = create<AIVideoGenerationState>()(
 			set({ isGenerating: true });
 
 			try {
+				let referenceImageUrl: string | undefined;
+				if (referenceImage) {
+					referenceImageUrl = await uploadReferenceImage({ file: referenceImage });
+				}
+
 				const submitResult = await provider.submitVideoTask({
 					request: {
 						prompt: trimmedPrompt,
 						duration,
 						aspectRatio,
 						resolution,
+						referenceImageUrl,
 					},
 					apiKey: videoApiKey,
 				});

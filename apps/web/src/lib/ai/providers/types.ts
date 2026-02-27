@@ -1,6 +1,7 @@
 export interface ImageGenerationRequest {
 	prompt: string;
 	aspectRatio?: string;
+	referenceImageUrl?: string;
 }
 
 export interface ImageGenerationResult {
@@ -23,6 +24,7 @@ export interface VideoGenerationRequest {
 	duration?: number;
 	aspectRatio?: string;
 	resolution?: string;
+	referenceImageUrl?: string;
 }
 
 export type VideoTaskStatus =

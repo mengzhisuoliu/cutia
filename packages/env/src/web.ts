@@ -21,6 +21,13 @@ const webEnvSchema = z.object({
 	UPSTASH_REDIS_REST_TOKEN: z.string(),
 	FREESOUND_CLIENT_ID: z.string().optional(),
 	FREESOUND_API_KEY: z.string().optional(),
+
+	// Cloudflare R2
+	R2_ACCOUNT_ID: z.string().optional(),
+	R2_ACCESS_KEY_ID: z.string().optional(),
+	R2_SECRET_ACCESS_KEY: z.string().optional(),
+	R2_BUCKET_NAME: z.string().optional(),
+	R2_PUBLIC_URL: z.string().optional(),
 });
 
 export type WebEnv = z.infer<typeof webEnvSchema>;

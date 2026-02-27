@@ -11,6 +11,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { AgentToolResult } from "@/lib/ai/agent/types";
+import { useEditor } from "@/hooks/use-editor";
 
 interface AgentToolCallProps {
 	name: string;
@@ -19,34 +20,46 @@ interface AgentToolCallProps {
 	isExecuting?: boolean;
 }
 
+function VideoPreview({ mediaId }: { mediaId: string }) {
+	const editor = useEditor();
+	const asset = editor.media.getAssets().find((a) => a.id === mediaId);
+	const videoUrl = asset?.url;
+
+	if (!videoUrl) return null;
+
+	return (
+		<video src={videoUrl} controls className="max-h-40 w-full rounded">
+			<track kind="captions" />
+		</video>
+	);
+}
+
 function MediaPreview({ result }: { result: AgentToolResult }) {
 	const previewUrls = result.data?.previewUrls as string[] | undefined;
 	const mediaType = result.data?.mediaType as string | undefined;
+	const mediaId = result.data?.mediaId as string | undefined;
+
+	if (mediaType === "video" && mediaId) {
+		return (
+			<div className="mt-1.5 flex flex-wrap gap-1.5">
+				<VideoPreview mediaId={mediaId} />
+			</div>
+		);
+	}
 
 	if (!previewUrls || previewUrls.length === 0) return null;
 
 	return (
 		<div className="mt-1.5 flex flex-wrap gap-1.5">
-			{previewUrls.map((url) =>
-				mediaType === "video" ? (
-					<video
-						key={url}
-						src={url}
-						controls
-						className="max-h-40 w-full rounded"
-					>
-						<track kind="captions" />
-					</video>
-				) : (
-					/* biome-ignore lint: blob URLs don't work with Next.js Image */
-					<img
-						key={url}
-						src={url}
-						alt="AI generated"
-						className="max-h-40 rounded object-contain"
-					/>
-				),
-			)}
+			{previewUrls.map((url) => (
+				/* biome-ignore lint: blob URLs don't work with Next.js Image */
+				<img
+					key={url}
+					src={url}
+					alt="AI generated"
+					className="max-h-40 rounded object-contain"
+				/>
+			))}
 		</div>
 	);
 }
@@ -60,10 +73,12 @@ export function AgentToolCall({
 	const { t } = useTranslation();
 	const [isExpanded, setIsExpanded] = useState(false);
 
-	const hasMediaPreview =
+	const hasMediaPreview = Boolean(
 		result?.success &&
-		Array.isArray(result.data?.previewUrls) &&
-		(result.data.previewUrls as string[]).length > 0;
+			((Array.isArray(result.data?.previewUrls) &&
+				(result.data.previewUrls as string[]).length > 0) ||
+				(result.data?.mediaType === "video" && result.data?.mediaId)),
+	);
 
 	const statusIcon = isExecuting ? (
 		<HugeiconsIcon
@@ -102,7 +117,7 @@ export function AgentToolCall({
 				<span className="truncate font-mono">{name}</span>
 			</button>
 
-			{hasMediaPreview && !isExpanded && (
+			{hasMediaPreview && !isExpanded && result && (
 				<div className="px-2 pb-1.5">
 					<MediaPreview result={result} />
 				</div>
@@ -111,7 +126,9 @@ export function AgentToolCall({
 			{isExpanded && (
 				<div className="border-t px-2 py-1.5">
 					<div className="space-y-1.5">
-						{hasMediaPreview && <MediaPreview result={result} />}
+						{hasMediaPreview && result && (
+							<MediaPreview result={result} />
+						)}
 						<div>
 							<span className="text-muted-foreground text-xs font-medium">
 								{t("Arguments")}

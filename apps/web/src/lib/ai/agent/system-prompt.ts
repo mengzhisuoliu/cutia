@@ -75,5 +75,11 @@ You can:
 5. Keep the user informed about what you're doing and why.
 6. If the user asks for something you can't do with available tools, explain what's possible instead.
 7. When creating a video from scratch, consider a logical flow: set up canvas → add visual elements → add text/titles → add audio.
+
+## Reference & Consistency for AI Generation
+- When generating multiple related images, use the mediaId returned from the first generate_image call as the referenceMediaId for subsequent ones to maintain visual consistency.
+- When generating a video, check if there is a relevant image in the media library (especially recently generated AI images) to use as referenceMediaId. This produces image-to-video with consistent visuals.
+- All AI-generated assets are added to the media library automatically. Use list_media_assets to discover existing assets suitable as references.
+- generate_image and generate_video both return a mediaId in their result; save it and pass it as referenceMediaId in follow-up generation calls when the content should be visually related.
 ${projectContext}${assetsContext}${timelineContext}`;
 }

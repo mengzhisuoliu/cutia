@@ -78,7 +78,7 @@ export const seedreamProvider: AIImageProvider = {
 			aspectRatio: request.aspectRatio,
 		});
 
-		const payload = {
+		const payload: Record<string, unknown> = {
 			model: DEFAULT_MODEL,
 			prompt: finalPrompt,
 			sequential_image_generation: "disabled",
@@ -88,18 +88,21 @@ export const seedreamProvider: AIImageProvider = {
 			watermark: false,
 		};
 
+		if (request.referenceImageUrl) {
+			payload.image = [request.referenceImageUrl];
+		}
+
 		const doFetch = this.useProxy ? fetchViaProxy : fetchDirect;
 		const response = await doFetch({ payload, apiKey });
 
 		if (!response.ok) {
 			const errorText = await response.text();
-			throw new Error(
-				`Seedream API error: ${response.status} - ${errorText}`,
-			);
+			throw new Error(`Seedream API error: ${response.status} - ${errorText}`);
 		}
 
 		const result = await response.json();
-		const dataList: Array<{ url?: string; b64_json?: string }> = result.data ?? [];
+		const dataList: Array<{ url?: string; b64_json?: string }> =
+			result.data ?? [];
 
 		if (dataList.length === 0) {
 			throw new Error("Seedream API returned no images");

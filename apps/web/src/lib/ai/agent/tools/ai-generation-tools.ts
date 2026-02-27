@@ -3,6 +3,7 @@ import { getImageProvider, getVideoProvider } from "@/lib/ai/providers";
 import type { AIVideoProvider } from "@/lib/ai/providers/types";
 import { pollVideoTask } from "@/lib/ai/providers/seedance";
 import { processMediaAssets } from "@/lib/media/processing";
+import { uploadMediaAssetAsReference } from "@/lib/media/upload-reference";
 import { fetchWithProxyFallback } from "@/lib/media/url-import";
 import {
 	createThumbnailDataUrl,
@@ -57,7 +58,7 @@ async function addFileToProject({
 	file,
 }: {
 	file: File;
-}): Promise<{ name: string; previewUrl: string }> {
+}): Promise<{ mediaId: string; name: string; previewUrl: string }> {
 	const editor = EditorCore.getInstance();
 	const project = editor.project.getActiveOrNull();
 	if (!project) {
@@ -70,13 +71,13 @@ async function addFileToProject({
 	}
 
 	const asset = processedAssets[0];
-	await editor.media.addMediaAsset({
+	const mediaId = await editor.media.addMediaAsset({
 		projectId: project.metadata.id,
 		asset,
 	});
 
 	const previewUrl = asset.thumbnailUrl ?? URL.createObjectURL(file);
-	return { name: asset.name, previewUrl };
+	return { mediaId, name: asset.name, previewUrl };
 }
 
 async function addImageToHistory({
@@ -116,10 +117,19 @@ async function addImageToHistory({
 	});
 }
 
+async function resolveReferenceImageUrl({
+	mediaId,
+}: {
+	mediaId: string | undefined;
+}): Promise<string | undefined> {
+	if (!mediaId) return undefined;
+	return uploadMediaAssetAsReference({ mediaId });
+}
+
 export const generateImageTool: AgentTool = {
 	name: "generate_image",
 	description:
-		"Generate an image using AI based on a text prompt. The generated image will be automatically added to the project's media library. Requires an image AI provider to be configured in Settings.",
+		"Generate an image using AI based on a text prompt. The generated image is automatically added to the project's media library and its mediaId is returned in the result. Use that mediaId as referenceMediaId in subsequent generate_image or generate_video calls to maintain visual consistency. Optionally accepts a reference image from the media library to guide style/content. Requires an image AI provider configured in Settings.",
 	parameters: {
 		type: "object",
 		properties: {
@@ -132,6 +142,11 @@ export const generateImageTool: AgentTool = {
 				type: "string",
 				description:
 					"Aspect ratio of the generated image (e.g. '16:9', '1:1', '9:16', '4:3'). Defaults to auto.",
+			},
+			referenceMediaId: {
+				type: "string",
+				description:
+					"Optional. The media asset ID of an image to use as a reference/style guide. Can be a previously generated image's mediaId or any image asset in the project. Use list_media_assets to discover available IDs.",
 			},
 		},
 		required: ["prompt"],
@@ -150,12 +165,18 @@ export const generateImageTool: AgentTool = {
 		const { provider, apiKey } = configured;
 		const prompt = args.prompt as string;
 		const aspectRatio = args.aspectRatio as string | undefined;
+		const referenceMediaId = args.referenceMediaId as string | undefined;
 
 		try {
+			const referenceImageUrl = await resolveReferenceImageUrl({
+				mediaId: referenceMediaId,
+			});
+
 			const results = await provider.generateImage({
 				request: {
 					prompt,
 					aspectRatio,
+					referenceImageUrl,
 				},
 				apiKey,
 			});
@@ -164,7 +185,11 @@ export const generateImageTool: AgentTool = {
 				return { success: false, message: "No images were generated" };
 			}
 
-			const addedAssets: Array<{ name: string; previewUrl: string }> = [];
+			const addedAssets: Array<{
+				mediaId: string;
+				name: string;
+				previewUrl: string;
+			}> = [];
 
 			for (const result of results) {
 				const id = generateUUID().slice(0, 8);
@@ -190,7 +215,10 @@ export const generateImageTool: AgentTool = {
 				data: {
 					mediaType: "image",
 					previewUrls: addedAssets.map((a) => a.previewUrl),
-					assets: addedAssets.map((a) => ({ name: a.name })),
+					assets: addedAssets.map((a) => ({
+						mediaId: a.mediaId,
+						name: a.name,
+					})),
 					provider: provider.name,
 				},
 			};
@@ -209,7 +237,7 @@ export const generateImageTool: AgentTool = {
 export const generateVideoTool: AgentTool = {
 	name: "generate_video",
 	description:
-		"Generate a video using AI based on a text prompt. This is a long-running operation that submits a task and polls for completion. The generated video will be automatically added to the project's media library. Requires a video AI provider to be configured in Settings.",
+		"Generate a video using AI based on a text prompt. This is a long-running operation that submits a task and polls for completion. The generated video is automatically added to the media library with its mediaId returned. Strongly recommended: provide a referenceMediaId pointing to an image asset (e.g. from a previous generate_image call) to produce an image-to-video result with consistent visuals. Requires a video AI provider configured in Settings.",
 	parameters: {
 		type: "object",
 		properties: {
@@ -232,6 +260,11 @@ export const generateVideoTool: AgentTool = {
 				description:
 					"Video resolution (e.g. '720p', '1080p'). Default: '720p'.",
 			},
+			referenceMediaId: {
+				type: "string",
+				description:
+					"The media asset ID of an image to use as the first frame / visual reference for video generation (image-to-video). Strongly recommended for visual consistency — use a mediaId from a previous generate_image result or any image in the media library.",
+			},
 		},
 		required: ["prompt"],
 	},
@@ -251,10 +284,15 @@ export const generateVideoTool: AgentTool = {
 		const duration = (args.duration as number) ?? 5;
 		const aspectRatio = (args.aspectRatio as string) ?? "16:9";
 		const resolution = (args.resolution as string) ?? "720p";
+		const referenceMediaId = args.referenceMediaId as string | undefined;
 
 		try {
+			const referenceImageUrl = await resolveReferenceImageUrl({
+				mediaId: referenceMediaId,
+			});
+
 			const submitResult = await provider.submitVideoTask({
-				request: { prompt, duration, aspectRatio, resolution },
+				request: { prompt, duration, aspectRatio, resolution, referenceImageUrl },
 				apiKey,
 			});
 
@@ -300,6 +338,7 @@ export const generateVideoTool: AgentTool = {
 				message: `Video generated and added to media library as '${added.name}'`,
 				data: {
 					mediaType: "video",
+					mediaId: added.mediaId,
 					previewUrls: [added.previewUrl],
 					name: added.name,
 					provider: provider.name,

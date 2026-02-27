@@ -29,13 +29,42 @@ interface GeminiResponse {
 	error?: { message: string };
 }
 
-function buildPayload({
+async function fetchImageAsBase64({
+	url,
+}: {
+	url: string;
+}): Promise<{ mimeType: string; data: string }> {
+	if (url.startsWith("data:")) {
+		const [header, base64Data] = url.split(",");
+		const mimeType = header.match(/:(.*?);/)?.[1] ?? "image/png";
+		return { mimeType, data: base64Data };
+	}
+
+	const response = await fetch(url);
+	if (!response.ok) {
+		throw new Error(`Failed to fetch reference image: ${response.status}`);
+	}
+	const blob = await response.blob();
+	const arrayBuffer = await blob.arrayBuffer();
+	const bytes = new Uint8Array(arrayBuffer);
+	let binary = "";
+	for (const byte of bytes) {
+		binary += String.fromCharCode(byte);
+	}
+	const base64 = btoa(binary);
+	const mimeType = blob.type || "image/png";
+	return { mimeType, data: base64 };
+}
+
+async function buildPayload({
 	prompt,
 	aspectRatio,
+	referenceImageUrl,
 }: {
 	prompt: string;
 	aspectRatio?: string;
-}): Record<string, unknown> {
+	referenceImageUrl?: string;
+}): Promise<Record<string, unknown>> {
 	const generationConfig: Record<string, unknown> = {
 		responseModalities: ["IMAGE"],
 		maxOutputTokens: 32768,
@@ -48,17 +77,26 @@ function buildPayload({
 		};
 	}
 
-	return {
-		contents: [
-			{
-				role: "user",
-				parts: [
-					{
-						text: `Please generate an image that matches the following prompt: ${prompt}`,
-					},
-				],
+	const parts: Array<Record<string, unknown>> = [];
+
+	if (referenceImageUrl) {
+		const imageData = await fetchImageAsBase64({ url: referenceImageUrl });
+		parts.push({
+			inlineData: {
+				mimeType: imageData.mimeType,
+				data: imageData.data,
 			},
-		],
+		});
+	}
+
+	const textPrefix = referenceImageUrl
+		? "Using the provided reference image, generate an image that matches the following prompt: "
+		: "Please generate an image that matches the following prompt: ";
+
+	parts.push({ text: `${textPrefix}${prompt}` });
+
+	return {
+		contents: [{ role: "user", parts }],
 		generationConfig,
 		safetySettings: [
 			{
@@ -120,9 +158,10 @@ export const nanoBananaProvider: AIImageProvider = {
 			throw new Error("Gemini API key is not configured");
 		}
 
-		const payload = buildPayload({
+		const payload = await buildPayload({
 			prompt: request.prompt,
 			aspectRatio: request.aspectRatio,
+			referenceImageUrl: request.referenceImageUrl,
 		});
 
 		const apiUrl = `${GEMINI_API_BASE}/${DEFAULT_MODEL}:generateContent`;

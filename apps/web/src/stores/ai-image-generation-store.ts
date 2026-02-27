@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { EditorCore } from "@/core";
 import { getImageProvider } from "@/lib/ai/providers";
 import { processMediaAssets } from "@/lib/media/processing";
+import { uploadReferenceImage } from "@/lib/media/upload-reference";
 import { useAISettingsStore } from "./ai-settings-store";
 import {
 	createThumbnailDataUrl,
@@ -24,11 +25,14 @@ export interface GeneratedImage {
 interface AIImageGenerationState {
 	prompt: string;
 	aspectRatio: string;
+	referenceImage: File | null;
+	referenceImagePreview: string | null;
 	isGenerating: boolean;
 	generatedImages: GeneratedImage[];
 
 	setPrompt: (prompt: string) => void;
 	setAspectRatio: (aspectRatio: string) => void;
+	setReferenceImage: (file: File | null) => void;
 	generate: () => Promise<void>;
 	retryAddToAssets: (imageId: string) => void;
 	clearImages: () => void;
@@ -206,11 +210,23 @@ export const useAIImageGenerationStore = create<AIImageGenerationState>()(
 	(set, get) => ({
 		prompt: "",
 		aspectRatio: "auto",
+		referenceImage: null,
+		referenceImagePreview: null,
 		isGenerating: false,
 		generatedImages: [],
 
 		setPrompt: (prompt) => set({ prompt }),
 		setAspectRatio: (aspectRatio) => set({ aspectRatio }),
+		setReferenceImage: (file) => {
+			const prev = get().referenceImagePreview;
+			if (prev) URL.revokeObjectURL(prev);
+
+			if (file) {
+				set({ referenceImage: file, referenceImagePreview: URL.createObjectURL(file) });
+			} else {
+				set({ referenceImage: null, referenceImagePreview: null });
+			}
+		},
 
 		generate: async () => {
 			if (get().isGenerating) return;
@@ -229,7 +245,7 @@ export const useAIImageGenerationStore = create<AIImageGenerationState>()(
 				return;
 			}
 
-			const { prompt, aspectRatio } = get();
+			const { prompt, aspectRatio, referenceImage } = get();
 			const trimmedPrompt = prompt.trim();
 			if (!trimmedPrompt) {
 				toast.error(i18next.t("Please enter a prompt"));
@@ -239,11 +255,17 @@ export const useAIImageGenerationStore = create<AIImageGenerationState>()(
 			set({ isGenerating: true });
 
 			try {
+				let referenceImageUrl: string | undefined;
+				if (referenceImage) {
+					referenceImageUrl = await uploadReferenceImage({ file: referenceImage });
+				}
+
 				const results = await provider.generateImage({
 					request: {
 						prompt: trimmedPrompt,
 						aspectRatio:
 							aspectRatio === "auto" ? undefined : aspectRatio,
+						referenceImageUrl,
 					},
 					apiKey: imageApiKey,
 				});

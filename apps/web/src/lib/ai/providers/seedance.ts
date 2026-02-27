@@ -136,14 +136,23 @@ export const seedanceProvider: AIVideoProvider = {
 			throw new Error("ARK_API_KEY is not configured");
 		}
 
+		const contentParts: Array<Record<string, unknown>> = [];
+
+		if (request.referenceImageUrl) {
+			contentParts.push({
+				type: "image_url",
+				image_url: { url: request.referenceImageUrl },
+			});
+		}
+
+		contentParts.push({
+			type: "text",
+			text: request.prompt,
+		});
+
 		const payload: Record<string, unknown> = {
 			model: DEFAULT_MODEL,
-			content: [
-				{
-					type: "text",
-					text: request.prompt,
-				},
-			],
+			content: contentParts,
 		};
 
 		if (request.duration !== undefined) {
