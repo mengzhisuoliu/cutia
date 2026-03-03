@@ -15,6 +15,7 @@ export function PreviewInteractionOverlay({
 		onPointerMove,
 		onPointerUp,
 		onScaleStart,
+		onResizeStart,
 		isTransforming,
 	} = usePreviewInteraction({ canvasRef, overlayRef });
 
@@ -29,6 +30,7 @@ export function PreviewInteractionOverlay({
 			<SelectionOverlay
 				displaySize={displaySize}
 				onScaleStart={onScaleStart}
+				onResizeStart={onResizeStart}
 				isTransforming={isTransforming}
 			/>
 		</div>

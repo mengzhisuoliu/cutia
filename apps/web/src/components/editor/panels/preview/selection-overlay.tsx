@@ -7,15 +7,20 @@ import type {
 	ImageElement,
 	TextElement,
 	StickerElement,
+	ElementType,
 } from "@/types/timeline";
 import type { MediaAsset } from "@/types/assets";
 import { FONT_SIZE_SCALE_REFERENCE } from "@/constants/text-constants";
 import { isBottomAlignedSubtitleText } from "@/lib/timeline/text-utils";
 
 type ScaleHandle = "top-left" | "top-right" | "bottom-left" | "bottom-right";
+type ResizeHandle = "left" | "right";
 
 const HANDLE_SIZE = 10;
-const HANDLES: ScaleHandle[] = [
+const RESIZE_HANDLE_WIDTH = 6;
+const RESIZE_HANDLE_HEIGHT = 24;
+
+const SCALE_HANDLES: ScaleHandle[] = [
 	"top-left",
 	"top-right",
 	"bottom-left",
@@ -100,21 +105,49 @@ function computeTextBounds({
 	canvasHeight: number;
 	displayScale: number;
 }): ElementBounds {
-	const scaledFontSize =
-		element.fontSize * (canvasHeight / FONT_SIZE_SCALE_REFERENCE);
-	const estimatedWidth = element.content.length * scaledFontSize * 0.6;
-	const estimatedHeight = scaledFontSize * 1.4;
+	const scaleFactor = canvasHeight / FONT_SIZE_SCALE_REFERENCE;
+	const scaledFontSize = element.fontSize * scaleFactor;
+
+	const elementBoxWidth = element.boxWidth;
+	const hasBoxWidth =
+		elementBoxWidth !== undefined && elementBoxWidth > 0;
+	const scaledBoxWidth = hasBoxWidth ? elementBoxWidth * scaleFactor : 0;
+
+	let estimatedWidth: number;
+	let estimatedHeight: number;
+	const elementScale = element.transform.scale;
+
+	if (hasBoxWidth) {
+		estimatedWidth = scaledBoxWidth;
+		const lineHeight = scaledFontSize * 1.3;
+		const charsPerLine = Math.max(
+			1,
+			Math.floor(scaledBoxWidth / (scaledFontSize * 0.6)),
+		);
+		const lineCount = Math.max(
+			1,
+			Math.ceil(element.content.length / charsPerLine),
+		);
+		estimatedHeight = lineCount * lineHeight;
+	} else {
+		estimatedWidth = element.content.length * scaledFontSize * 0.6;
+		estimatedHeight = scaledFontSize * 1.4;
+	}
 
 	const centerX = canvasWidth / 2 + element.transform.position.x;
 	const baseY = canvasHeight / 2 + element.transform.position.y;
 	const isBottomAligned = isBottomAlignedSubtitleText({ element });
-	const topY = isBottomAligned ? baseY - estimatedHeight : baseY - estimatedHeight / 2;
+	const scaledEstimatedWidth = estimatedWidth * elementScale;
+	const scaledEstimatedHeight = estimatedHeight * elementScale;
+	const topY = isBottomAligned
+		? baseY - scaledEstimatedHeight
+		: baseY - scaledEstimatedHeight / 2;
 
 	return {
-		left: (centerX - estimatedWidth / 2) * displayScale,
+		left: (centerX - scaledEstimatedWidth / 2) * displayScale,
 		top: topY * displayScale,
-		width: estimatedWidth * displayScale,
-		height: estimatedHeight * displayScale,
+		width: scaledEstimatedWidth * displayScale,
+		height: scaledEstimatedHeight * displayScale,
 		rotate: element.transform.rotate,
 	};
 }
@@ -188,16 +221,25 @@ function computeElementBounds({
 
 function ElementOverlay({
 	bounds,
+	elementType,
 	isTransforming,
 	onScaleStart,
+	onResizeStart,
 }: {
 	bounds: ElementBounds;
+	elementType: ElementType;
 	isTransforming: boolean;
 	onScaleStart: ({
 		event,
 		handle,
 	}: { event: React.PointerEvent; handle: ScaleHandle }) => void;
+	onResizeStart?: ({
+		event,
+		handle,
+	}: { event: React.PointerEvent; handle: ResizeHandle }) => void;
 }) {
+	const showResizeHandles = elementType === "text" && onResizeStart;
+
 	return (
 		<div
 			className="pointer-events-none absolute"
@@ -219,8 +261,8 @@ function ElementOverlay({
 				)}
 			/>
 
-			{/* Corner handles */}
-			{HANDLES.map((handle) => (
+			{/* Corner handles (proportional scale) */}
+			{SCALE_HANDLES.map((handle) => (
 				<div
 					key={handle}
 					className="bg-primary border-background pointer-events-auto absolute rounded-sm border"
@@ -236,6 +278,44 @@ function ElementOverlay({
 					}}
 				/>
 			))}
+
+			{/* Side handles for text width resize */}
+			{showResizeHandles && (
+				<>
+					{/* Left handle */}
+					<div
+						className="bg-primary border-background pointer-events-auto absolute rounded-sm border"
+						style={{
+							width: RESIZE_HANDLE_WIDTH,
+							height: RESIZE_HANDLE_HEIGHT,
+							cursor: "ew-resize",
+							left: -RESIZE_HANDLE_WIDTH / 2,
+							top: "50%",
+							transform: "translateY(-50%)",
+						}}
+						onPointerDown={(event) => {
+							event.stopPropagation();
+							onResizeStart({ event, handle: "left" });
+						}}
+					/>
+					{/* Right handle */}
+					<div
+						className="bg-primary border-background pointer-events-auto absolute rounded-sm border"
+						style={{
+							width: RESIZE_HANDLE_WIDTH,
+							height: RESIZE_HANDLE_HEIGHT,
+							cursor: "ew-resize",
+							right: -RESIZE_HANDLE_WIDTH / 2,
+							top: "50%",
+							transform: "translateY(-50%)",
+						}}
+						onPointerDown={(event) => {
+							event.stopPropagation();
+							onResizeStart({ event, handle: "right" });
+						}}
+					/>
+				</>
+			)}
 		</div>
 	);
 }
@@ -243,6 +323,7 @@ function ElementOverlay({
 export function SelectionOverlay({
 	displaySize,
 	onScaleStart,
+	onResizeStart,
 	isTransforming,
 }: {
 	displaySize: { width: number; height: number };
@@ -254,6 +335,17 @@ export function SelectionOverlay({
 	}: {
 		event: React.PointerEvent;
 		handle: ScaleHandle;
+		element: TimelineElement;
+		trackId: string;
+	}) => void;
+	onResizeStart: ({
+		event,
+		handle,
+		element,
+		trackId,
+	}: {
+		event: React.PointerEvent;
+		handle: ResizeHandle;
 		element: TimelineElement;
 		trackId: string;
 	}) => void;
@@ -282,7 +374,6 @@ export function SelectionOverlay({
 		elements: selectedElements,
 	});
 
-	// only show overlays for visible elements at the current time
 	const visibleElements = elementsWithTracks.filter(({ element }) => {
 		if (element.type === "audio") return false;
 		return (
@@ -317,9 +408,18 @@ export function SelectionOverlay({
 					<ElementOverlay
 						key={element.id}
 						bounds={bounds}
+						elementType={element.type}
 						isTransforming={isTransforming}
 						onScaleStart={({ event, handle }) =>
 							onScaleStart({
+								event,
+								handle,
+								element,
+								trackId: track.id,
+							})
+						}
+						onResizeStart={({ event, handle }) =>
+							onResizeStart({
 								event,
 								handle,
 								element,

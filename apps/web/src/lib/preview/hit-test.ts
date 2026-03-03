@@ -63,11 +63,34 @@ function getElementHalfSize({
 	}
 
 	if (element.type === "text") {
-		const scaledFontSize =
-			element.fontSize * (canvasHeight / FONT_SIZE_SCALE_REFERENCE);
+		const scaleFactor = canvasHeight / FONT_SIZE_SCALE_REFERENCE;
+		const scaledFontSize = element.fontSize * scaleFactor;
+		const elementScale = element.transform.scale;
+
+		const elementBoxWidth = element.boxWidth;
+		const hasBoxWidth =
+			elementBoxWidth !== undefined && elementBoxWidth > 0;
+
+		if (hasBoxWidth) {
+			const scaledBoxWidth = elementBoxWidth * scaleFactor;
+			const lineHeight = scaledFontSize * 1.3;
+			const charsPerLine = Math.max(
+				1,
+				Math.floor(scaledBoxWidth / (scaledFontSize * 0.6)),
+			);
+			const lineCount = Math.max(
+				1,
+				Math.ceil(element.content.length / charsPerLine),
+			);
+			return {
+				halfWidth: (scaledBoxWidth * elementScale) / 2,
+				halfHeight: ((lineCount * lineHeight) * elementScale) / 2,
+			};
+		}
+
 		return {
-			halfWidth: (element.content.length * scaledFontSize * 0.6) / 2,
-			halfHeight: (scaledFontSize * 1.4) / 2,
+			halfWidth: (element.content.length * scaledFontSize * 0.6 * elementScale) / 2,
+			halfHeight: ((scaledFontSize * 1.4) * elementScale) / 2,
 		};
 	}
 

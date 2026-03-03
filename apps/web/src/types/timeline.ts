@@ -155,6 +155,7 @@ export interface TextElement extends BaseTimelineElement {
 	opacity: number;
 	stroke?: TextStroke;
 	shadow?: TextShadow;
+	boxWidth?: number;
 }
 
 export interface StickerElement extends BaseTimelineElement {

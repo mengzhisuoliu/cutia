@@ -5,10 +5,13 @@ import type {
 	Transform,
 	TimelineTrack,
 	TimelineElement,
+	TextElement,
 } from "@/types/timeline";
 import { hitTestElements } from "@/lib/preview/hit-test";
+import { FONT_SIZE_SCALE_REFERENCE } from "@/constants/text-constants";
 
 type ScaleHandle = "top-left" | "top-right" | "bottom-left" | "bottom-right";
+type ResizeHandle = "left" | "right";
 
 interface DragState {
 	startX: number;
@@ -33,6 +36,18 @@ interface ScaleState {
 	anchorY: number;
 }
 
+interface ResizeState {
+	startX: number;
+	startY: number;
+	handle: ResizeHandle;
+	tracksSnapshot: TimelineTrack[];
+	trackId: string;
+	elementId: string;
+	initialBoxWidth: number;
+	initialTransform: Transform;
+	scaleFactor: number;
+}
+
 export function usePreviewInteraction({
 	canvasRef,
 	overlayRef,
@@ -45,7 +60,9 @@ export function usePreviewInteraction({
 	const [isScaling, setIsScaling] = useState(false);
 	const dragStateRef = useRef<DragState | null>(null);
 	const scaleStateRef = useRef<ScaleState | null>(null);
+	const resizeStateRef = useRef<ResizeState | null>(null);
 	const scalePointerIdRef = useRef<number | null>(null);
+	const resizePointerIdRef = useRef<number | null>(null);
 
 	const selectedElements = useSyncExternalStore(
 		(listener) => editor.selection.subscribe(listener),
@@ -83,7 +100,6 @@ export function usePreviewInteraction({
 			const mediaAssets = editor.media.getAssets();
 			const currentTime = editor.playback.getCurrentTime();
 
-			// hit-test all visible elements at the click point
 			const hitResult = hitTestElements({
 				point: startPos,
 				tracks,
@@ -104,7 +120,6 @@ export function usePreviewInteraction({
 					selected.elementId === hitResult.element.id,
 			);
 
-			// clicking an unselected element → select only that element
 			if (!isAlreadySelected) {
 				editor.selection.setSelectedElements({
 					elements: [
@@ -128,7 +143,6 @@ export function usePreviewInteraction({
 					],
 				};
 			} else {
-				// already selected → drag all selected elements
 				const elementsWithTracks = editor.timeline.getElementsWithTracks({
 					elements: selectedElements,
 				});
@@ -199,11 +213,56 @@ export function usePreviewInteraction({
 				anchorY,
 			};
 
-			// capture pointer on overlay so events continue outside the handle
 			scalePointerIdRef.current = event.pointerId;
 			overlayRef.current?.setPointerCapture(event.pointerId);
 
 			setIsScaling(true);
+		},
+		[editor, getCanvasCoordinates, canvasRef, overlayRef],
+	);
+
+	const handleResizeStart = useCallback(
+		({
+			event,
+			handle,
+			element,
+			trackId,
+		}: {
+			event: React.PointerEvent;
+			handle: ResizeHandle;
+			element: TimelineElement;
+			trackId: string;
+		}) => {
+			if (element.type !== "text") return;
+
+			const textElement = element as TextElement;
+			const startPos = getCanvasCoordinates({
+				clientX: event.clientX,
+				clientY: event.clientY,
+			});
+
+			const canvasHeight = canvasRef.current?.height ?? 0;
+			const scaleFactor = canvasHeight / FONT_SIZE_SCALE_REFERENCE;
+
+			const initialBoxWidth =
+				textElement.boxWidth && textElement.boxWidth > 0
+					? textElement.boxWidth
+					: textElement.content.length * textElement.fontSize * 0.6;
+
+			resizeStateRef.current = {
+				startX: startPos.x,
+				startY: startPos.y,
+				handle,
+				tracksSnapshot: editor.timeline.getTracks(),
+				trackId,
+				elementId: element.id,
+				initialBoxWidth,
+				initialTransform: textElement.transform,
+				scaleFactor,
+			};
+
+			resizePointerIdRef.current = event.pointerId;
+			overlayRef.current?.setPointerCapture(event.pointerId);
 		},
 		[editor, getCanvasCoordinates, canvasRef, overlayRef],
 	);
@@ -214,6 +273,49 @@ export function usePreviewInteraction({
 				clientX: event.clientX,
 				clientY: event.clientY,
 			});
+
+			if (resizeStateRef.current) {
+				const state = resizeStateRef.current;
+				const { scaleFactor } = state;
+
+				const rawDeltaX = currentPos.x - state.startX;
+				const initialWidthPx = state.initialBoxWidth * scaleFactor;
+
+				const directedDelta =
+					state.handle === "right" ? rawDeltaX : -rawDeltaX;
+				const newWidthPx = Math.max(20, initialWidthPx + directedDelta);
+				const newBoxWidth = newWidthPx / scaleFactor;
+
+				const widthChangePx =
+					(newBoxWidth - state.initialBoxWidth) * scaleFactor;
+				const positionOffsetX =
+					state.handle === "right"
+						? widthChangePx / 2
+						: -widthChangePx / 2;
+
+				editor.timeline.updateElements({
+					updates: [
+						{
+							trackId: state.trackId,
+							elementId: state.elementId,
+							updates: {
+								boxWidth: newBoxWidth,
+								transform: {
+									...state.initialTransform,
+									position: {
+										x:
+											state.initialTransform.position.x +
+											positionOffsetX,
+										y: state.initialTransform.position.y,
+									},
+								},
+							},
+						},
+					],
+					pushHistory: false,
+				});
+				return;
+			}
 
 			// scaling takes priority
 			if (scaleStateRef.current && isScaling) {
@@ -287,6 +389,71 @@ export function usePreviewInteraction({
 
 	const handlePointerUp = useCallback(
 		(event: React.PointerEvent) => {
+			if (resizeStateRef.current) {
+				const state = resizeStateRef.current;
+				const currentPos = getCanvasCoordinates({
+					clientX: event.clientX,
+					clientY: event.clientY,
+				});
+
+				const rawDeltaX = currentPos.x - state.startX;
+				const hasResized = Math.abs(rawDeltaX) > 1;
+
+				if (hasResized) {
+					const { scaleFactor } = state;
+					const initialWidthPx = state.initialBoxWidth * scaleFactor;
+					const directedDelta =
+						state.handle === "right" ? rawDeltaX : -rawDeltaX;
+					const newWidthPx = Math.max(
+						20,
+						initialWidthPx + directedDelta,
+					);
+					const newBoxWidth = newWidthPx / scaleFactor;
+
+					const widthChangePx =
+						(newBoxWidth - state.initialBoxWidth) * scaleFactor;
+					const positionOffsetX =
+						state.handle === "right"
+							? widthChangePx / 2
+							: -widthChangePx / 2;
+
+					editor.timeline.updateTracks(state.tracksSnapshot);
+					editor.timeline.updateElements({
+						updates: [
+							{
+								trackId: state.trackId,
+								elementId: state.elementId,
+								updates: {
+									boxWidth: newBoxWidth,
+									transform: {
+										...state.initialTransform,
+										position: {
+											x:
+												state.initialTransform.position
+													.x + positionOffsetX,
+											y: state.initialTransform.position
+												.y,
+										},
+									},
+								},
+							},
+						],
+					});
+				} else {
+					editor.timeline.updateTracks(state.tracksSnapshot);
+				}
+
+				if (resizePointerIdRef.current !== null) {
+					overlayRef.current?.releasePointerCapture(
+						resizePointerIdRef.current,
+					);
+					resizePointerIdRef.current = null;
+				}
+
+				resizeStateRef.current = null;
+				return;
+			}
+
 			// handle scale commit
 			if (scaleStateRef.current && isScaling) {
 				const state = scaleStateRef.current;
@@ -312,7 +479,6 @@ export function usePreviewInteraction({
 						Math.min(5, state.initialTransform.scale * ratio),
 					);
 
-					// revert then push with history
 					editor.timeline.updateTracks(state.tracksSnapshot);
 					editor.timeline.updateElements({
 						updates: [
@@ -332,7 +498,6 @@ export function usePreviewInteraction({
 					editor.timeline.updateTracks(state.tracksSnapshot);
 				}
 
-				// release pointer capture
 				if (scalePointerIdRef.current !== null) {
 					overlayRef.current?.releasePointerCapture(
 						scalePointerIdRef.current,
@@ -365,7 +530,6 @@ export function usePreviewInteraction({
 				return;
 			}
 
-			// revert to pre-drag state so the command captures the correct undo snapshot
 			editor.timeline.updateTracks(dragStateRef.current.tracksSnapshot);
 
 			const updates = dragStateRef.current.elements.map(
@@ -397,11 +561,14 @@ export function usePreviewInteraction({
 		[isDragging, isScaling, getCanvasCoordinates, editor, overlayRef],
 	);
 
+	const isResizing = resizeStateRef.current !== null;
+
 	return {
 		onPointerDown: handlePointerDown,
 		onPointerMove: handlePointerMove,
 		onPointerUp: handlePointerUp,
 		onScaleStart: handleScaleStart,
-		isTransforming: isDragging || isScaling,
+		onResizeStart: handleResizeStart,
+		isTransforming: isDragging || isScaling || isResizing,
 	};
 }
