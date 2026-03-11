@@ -158,6 +158,35 @@ function resolveCharacterId({
 	return undefined;
 }
 
+function buildEnhancedPrompt({
+	prompt,
+	characterId,
+}: {
+	prompt: string;
+	characterId: string | undefined;
+}): string {
+	if (!characterId) return prompt;
+
+	const character = useCharacterStore
+		.getState()
+		.getCharacterById({ id: characterId });
+	if (!character) return prompt;
+
+	const parts: string[] = [];
+
+	if (character.description) {
+		parts.push(`[Character: ${character.name}] ${character.description}`);
+	}
+
+	parts.push(prompt);
+
+	if (character.styleDescription) {
+		parts.push(`[Style: ${character.styleDescription}]`);
+	}
+
+	return parts.join("\n\n");
+}
+
 export const generateImageTool: AgentTool = {
 	name: "generate_image",
 	description:
@@ -242,9 +271,14 @@ export const generateImageTool: AgentTool = {
 				});
 			}
 
+			const enhancedPrompt = buildEnhancedPrompt({
+				prompt,
+				characterId: resolvedCharacterId,
+			});
+
 			const results = await provider.generateImage({
 				request: {
-					prompt,
+					prompt: enhancedPrompt,
 					aspectRatio,
 					referenceImageUrl,
 				},
@@ -419,9 +453,14 @@ export const generateVideoTool: AgentTool = {
 				});
 			}
 
+			const enhancedPrompt = buildEnhancedPrompt({
+				prompt,
+				characterId: resolvedCharacterId,
+			});
+
 			const submitResult = await provider.submitVideoTask({
 				request: {
-					prompt,
+					prompt: enhancedPrompt,
 					duration,
 					aspectRatio,
 					resolution,

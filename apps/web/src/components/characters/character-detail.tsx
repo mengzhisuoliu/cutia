@@ -86,6 +86,17 @@ export function CharacterDetailDialog({
 							</p>
 						)}
 
+						{character.styleDescription && (
+							<div className="flex flex-col gap-1">
+								<h4 className="text-sm font-medium">
+									{t("Style Lock")}
+								</h4>
+								<p className="text-muted-foreground text-xs whitespace-pre-wrap rounded-md bg-muted/50 p-2">
+									{character.styleDescription}
+								</p>
+							</div>
+						)}
+
 						<div className="flex flex-col gap-2">
 							<h4 className="text-sm font-medium">
 								{t("Reference Images ({{num}})", {

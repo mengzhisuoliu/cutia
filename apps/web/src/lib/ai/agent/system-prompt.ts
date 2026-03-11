@@ -49,10 +49,15 @@ ${assets
 			? `
 ## Available Characters
 ${characters
-	.map(
-		(c) =>
-			`- [${c.id}] "${c.name}" (${c.images.length} reference images, ${c.generations.length} generations)${c.description ? `: ${c.description}` : ""}`,
-	)
+	.map((c) => {
+		const parts = [
+			`- [${c.id}] "${c.name}" (${c.images.length} ref images, ${c.generations.length} generations)`,
+		];
+		if (c.description) parts.push(`  Description: ${c.description}`);
+		if (c.styleDescription)
+			parts.push(`  Style Lock: ${c.styleDescription}`);
+		return parts.join("\n");
+	})
 	.join("\n")}
 `
 			: "\n## No characters in the library.\n";
@@ -112,11 +117,22 @@ You can:
 - All AI-generated assets are added to the media library automatically. Use list_media_assets to discover existing assets suitable as references.
 - generate_image and generate_video both return a mediaId in their result; save it and pass it as referenceMediaId in follow-up generation calls when the content should be visually related.
 
-## Character Library
-- The character library stores reusable AI character cards with reference images (front-facing portraits).
-- Use list_characters to see available characters. Use characterId or characterName in generate_image / generate_video to automatically use a character's reference image.
+## Character Library & Visual Consistency
+- The character library stores reusable AI character cards with reference images, descriptions, and style locks.
+- Use list_characters to see available characters. Use get_character_details to view a character's full profile before generating content.
+- Use characterId or characterName in generate_image / generate_video to automatically use a character's reference image.
 - When a character is used as reference, the generated content is automatically associated with that character.
 - Prefer using characterId/characterName over referenceMediaId when the user mentions a specific character by name.
+
+### Auto-Injection into Generation Prompts
+- A character's **description** is automatically **prepended** to the generation prompt, ensuring appearance consistency across all generated images and videos.
+- A character's **style lock** is automatically **appended** to the generation prompt, ensuring all assets share a cohesive art style.
+
+### Analyzing Reference Images (Reverse-Engineering)
+- Use analyze_character_appearance to **automatically extract** a description and/or art style from a character's uploaded reference image using vision AI.
+- This is the preferred way to populate descriptions — derive them directly from the reference image rather than asking the user to describe manually.
+- When a character has reference images but an empty description or no style lock, proactively suggest running analyze_character_appearance.
+- You can also use update_character_style to manually set or refine the style lock.
 ${rolePromptAddition}
 ${characterContext}${projectContext}${assetsContext}${timelineContext}`;
 }

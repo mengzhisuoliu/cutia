@@ -19,6 +19,7 @@ import {
 	useCharacterStore,
 	storeCharacterImageBlob,
 	createImageThumbnailDataUrl,
+	getCharacterImageBlob,
 } from "@/stores/character-store";
 import { generateCharacterPortrait } from "./turnaround-generator";
 import { generateUUID } from "@/utils/id";
@@ -28,9 +29,17 @@ import {
 	Cancel01Icon,
 	ImageAdd01Icon,
 	Loading03Icon,
+	SparklesIcon,
 	Upload04Icon,
 } from "@hugeicons/core-free-icons";
 import type { AICharacter, CharacterImage } from "@/types/character";
+import {
+	analyzeImageWithVision,
+	blobToDataUrl,
+	DESCRIPTION_ANALYSIS_PROMPT,
+	STYLE_ANALYSIS_PROMPT,
+} from "@/lib/ai/vision";
+import { useAgentStore } from "@/stores/agent-store";
 import {
 	ImageLightbox,
 	useImageLightbox,
@@ -59,7 +68,13 @@ export function CharacterCreatorDialog({
 	const [description, setDescription] = useState(
 		editCharacter?.description ?? "",
 	);
+	const [styleDescription, setStyleDescription] = useState(
+		editCharacter?.styleDescription ?? "",
+	);
 	const [isGenerating, setIsGenerating] = useState(false);
+	const [isAnalyzing, setIsAnalyzing] = useState(false);
+	const agentConfig = useAgentStore((s) => s.config);
+	const isAgentConfigured = agentConfig.apiKey.length > 0;
 	const lightbox = useImageLightbox();
 	const [previewImages, setPreviewImages] = useState<
 		Array<{
@@ -210,6 +225,7 @@ export function CharacterCreatorDialog({
 	const resetForm = useCallback(() => {
 		setName("");
 		setDescription("");
+		setStyleDescription("");
 		setPreviewImages([]);
 		setPendingImages(new Map());
 	}, []);
@@ -221,10 +237,16 @@ export function CharacterCreatorDialog({
 			return;
 		}
 
+		const trimmedStyleDesc = styleDescription.trim() || undefined;
+
 		if (isEditing && editCharacter) {
 			updateCharacter({
 				id: editCharacter.id,
-				updates: { name: trimmedName, description: description.trim() },
+				updates: {
+					name: trimmedName,
+					description: description.trim(),
+					styleDescription: trimmedStyleDesc,
+				},
 			});
 			for (const image of pendingImages.values()) {
 				addImage({ characterId: editCharacter.id, image });
@@ -234,6 +256,12 @@ export function CharacterCreatorDialog({
 				name: trimmedName,
 				description: description.trim(),
 			});
+			if (trimmedStyleDesc) {
+				updateCharacter({
+					id: characterId,
+					updates: { styleDescription: trimmedStyleDesc },
+				});
+			}
 			for (const image of pendingImages.values()) {
 				addImage({ characterId, image });
 			}
@@ -244,6 +272,7 @@ export function CharacterCreatorDialog({
 	}, [
 		name,
 		description,
+		styleDescription,
 		isEditing,
 		editCharacter,
 		pendingImages,
@@ -254,6 +283,51 @@ export function CharacterCreatorDialog({
 		resetForm,
 		t,
 	]);
+
+	const handleAnalyzeFromImage = useCallback(async () => {
+		const firstImage = previewImages[0];
+		if (!firstImage) {
+			toast.error(t("Please upload a reference image first"));
+			return;
+		}
+
+		setIsAnalyzing(true);
+		try {
+			const blob = await getCharacterImageBlob({
+				id: firstImage.blobKey,
+			});
+			if (!blob) {
+				toast.error(t("Failed to load reference image"));
+				return;
+			}
+
+			const imageDataUrl = await blobToDataUrl({ blob });
+
+			const [descResult, styleResult] = await Promise.all([
+				analyzeImageWithVision({
+					imageDataUrl,
+					analysisPrompt: DESCRIPTION_ANALYSIS_PROMPT,
+				}),
+				analyzeImageWithVision({
+					imageDataUrl,
+					analysisPrompt: STYLE_ANALYSIS_PROMPT,
+				}),
+			]);
+
+			if (descResult) setDescription(descResult);
+			if (styleResult) setStyleDescription(styleResult);
+
+			toast.success(t("Description and style generated from image"));
+		} catch (error) {
+			toast.error(
+				error instanceof Error
+					? error.message
+					: t("Failed to analyze image"),
+			);
+		} finally {
+			setIsAnalyzing(false);
+		}
+	}, [previewImages, t]);
 
 	const handleOpenChange = (open: boolean) => {
 		if (!open) {
@@ -286,9 +360,39 @@ export function CharacterCreatorDialog({
 					</div>
 
 					<div className="flex flex-col gap-2">
-						<Label htmlFor="character-description">
-							{t("Description")}
-						</Label>
+						<div className="flex items-center justify-between">
+							<Label htmlFor="character-description">
+								{t("Description")}
+							</Label>
+							{previewImages.length > 0 &&
+								isAgentConfigured && (
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										className="h-6 gap-1 px-2 text-xs"
+										disabled={isAnalyzing}
+										onClick={handleAnalyzeFromImage}
+										onKeyDown={(event) => {
+											if (event.key === "Enter")
+												handleAnalyzeFromImage();
+										}}
+									>
+										{isAnalyzing ? (
+											<HugeiconsIcon
+												icon={Loading03Icon}
+												className="size-3 animate-spin"
+											/>
+										) : (
+											<HugeiconsIcon
+												icon={SparklesIcon}
+												className="size-3"
+											/>
+										)}
+										{t("Generate from image")}
+									</Button>
+								)}
+						</div>
 						<Textarea
 							id="character-description"
 							placeholder={t(
@@ -302,7 +406,32 @@ export function CharacterCreatorDialog({
 						/>
 						<p className="text-muted-foreground text-xs">
 							{t(
-								"Tip: Include details like hair color, clothing style, and distinguishing features for better results.",
+								"Auto-injected into AI generation prompts for consistent character appearance.",
+							)}
+						</p>
+					</div>
+
+					<div className="flex flex-col gap-2">
+						<Label htmlFor="character-style-description">
+							{t("Style Lock")}{" "}
+							<span className="text-muted-foreground font-normal">
+								({t("optional")})
+							</span>
+						</Label>
+						<Textarea
+							id="character-style-description"
+							placeholder={t(
+								"Art style, color palette, lighting, rendering approach... e.g. 'Pixar 3D style, warm lighting, vibrant colors'",
+							)}
+							value={styleDescription}
+							onChange={(event) =>
+								setStyleDescription(event.target.value)
+							}
+							rows={2}
+						/>
+						<p className="text-muted-foreground text-xs">
+							{t(
+								"Ensures all generated content maintains a consistent visual style.",
 							)}
 						</p>
 					</div>

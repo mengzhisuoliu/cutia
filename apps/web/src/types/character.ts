@@ -26,6 +26,7 @@ export interface AICharacter {
 	id: string;
 	name: string;
 	description: string;
+	styleDescription?: string;
 	images: CharacterImage[];
 	generations: CharacterGeneration[];
 	thumbnailDataUrl?: string;

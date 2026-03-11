@@ -143,7 +143,9 @@ interface CharacterStoreState {
 
 	updateCharacter: (params: {
 		id: string;
-		updates: Partial<Pick<AICharacter, "name" | "description">>;
+		updates: Partial<
+			Pick<AICharacter, "name" | "description" | "styleDescription">
+		>;
 	}) => void;
 
 	deleteCharacter: (params: { id: string }) => void;
