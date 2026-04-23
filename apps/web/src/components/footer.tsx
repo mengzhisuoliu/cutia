@@ -5,6 +5,7 @@ import { FaGithub } from "react-icons/fa6";
 import Image from "next/image";
 import { DEFAULT_LOGO_URL, SOCIAL_LINKS } from "@/constants/site-constants";
 import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
+import { FeedbackTrigger } from "@/components/feedback/feedback-trigger";
 
 interface FooterLink {
 	label: string;
@@ -40,6 +41,14 @@ export function Footer() {
 								{link.label}
 							</Link>
 						))}
+						<FeedbackTrigger>
+							<button
+								type="button"
+								className="text-muted-foreground hover:text-foreground text-xs transition-colors"
+							>
+								{t("Feedback")}
+							</button>
+						</FeedbackTrigger>
 					</nav>
 				</div>
 

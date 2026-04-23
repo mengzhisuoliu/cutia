@@ -20,9 +20,11 @@ import { toast } from "sonner";
 import { useEditor } from "@/hooks/use-editor";
 import {
 	ArrowLeft02Icon,
+	BubbleChatIcon,
 	CommandIcon,
 	SparklesIcon,
 } from "@hugeicons/core-free-icons";
+import { FeedbackTrigger } from "@/components/feedback/feedback-trigger";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ShortcutsDialog } from "./dialogs/shortcuts-dialog";
 import Image from "next/image";
@@ -31,6 +33,7 @@ import { useTranslation } from "@i18next-toolkit/nextjs-approuter";
 import { useAgentStore } from "@/stores/agent-store";
 
 export function EditorHeader() {
+	const { t } = useTranslation();
 	return (
 		<header className="bg-background flex h-[3.4rem] items-center justify-between px-3 pt-0.5">
 			<div className="flex items-center gap-1">
@@ -38,6 +41,17 @@ export function EditorHeader() {
 				<EditableProjectName />
 			</div>
 			<nav className="flex items-center gap-2">
+				<FeedbackTrigger>
+					<Button
+						type="button"
+						variant="ghost"
+						size="icon"
+						aria-label={t("Feedback")}
+						title={t("Feedback")}
+					>
+						<HugeiconsIcon icon={BubbleChatIcon} className="size-4" />
+					</Button>
+				</FeedbackTrigger>
 				<LanguageToggle />
 				<ThemeToggle />
 				<AgentToggle />

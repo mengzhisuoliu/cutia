@@ -78,6 +78,7 @@
     "streamdown": "^2.3.0",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
+    "tianji-client-sdk": "^1.5.0",
     "unified": "^11.0.5",
     "use-deep-compare-effect": "^1.8.1",
     "vaul": "^1.1.1",

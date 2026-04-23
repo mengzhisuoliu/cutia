@@ -15,12 +15,14 @@ import {
 	ArrowLeft02Icon,
 	ArrowTurnBackwardIcon,
 	ArrowTurnForwardIcon,
+	BubbleChatIcon,
 	FullScreenIcon,
 	MoreVerticalIcon,
 	Settings01Icon,
 	TransitionTopIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { FeedbackDialog } from "@/components/feedback/feedback-dialog";
 
 export function MobileHeader() {
 	const { t } = useTranslation();
@@ -145,61 +147,79 @@ function OverflowMenu({
 }) {
 	const { t } = useTranslation();
 	const [open, setOpen] = useState(false);
+	const [feedbackOpen, setFeedbackOpen] = useState(false);
 
 	const handleSelect = ({ action }: { action: () => void }) => {
 		setOpen(false);
 		action();
 	};
 
+	const handleFeedback = () => {
+		setOpen(false);
+		setTimeout(() => setFeedbackOpen(true), 0);
+	};
+
 	return (
-		<DropdownMenu open={open} onOpenChange={setOpen}>
-			<DropdownMenuTrigger asChild>
-				<Button
-					type="button"
-					variant="ghost"
-					size="icon"
-					className="size-8"
-					title={t("More options")}
-				>
-					<HugeiconsIcon icon={MoreVerticalIcon} className="size-4" />
-				</Button>
-			</DropdownMenuTrigger>
+		<>
+			<DropdownMenu open={open} onOpenChange={setOpen}>
+				<DropdownMenuTrigger asChild>
+					<Button
+						type="button"
+						variant="ghost"
+						size="icon"
+						className="size-8"
+						title={t("More options")}
+					>
+						<HugeiconsIcon icon={MoreVerticalIcon} className="size-4" />
+					</Button>
+				</DropdownMenuTrigger>
 
-			<DropdownMenuContent align="end" className="w-48">
-				<DropdownMenuItem
-					className="flex items-center gap-2"
-					onClick={() => handleSelect({ action: onExport })}
-				>
-					<HugeiconsIcon icon={TransitionTopIcon} className="size-4" />
-					{t("Export")}
-				</DropdownMenuItem>
+				<DropdownMenuContent align="end" className="w-48">
+					<DropdownMenuItem
+						className="flex items-center gap-2"
+						onClick={() => handleSelect({ action: onExport })}
+					>
+						<HugeiconsIcon icon={TransitionTopIcon} className="size-4" />
+						{t("Export")}
+					</DropdownMenuItem>
 
-				<DropdownMenuItem
-					className="flex items-center gap-2"
-					onClick={() =>
-						handleSelect({
-							action: () => {
-								/* Project settings will be handled by a drawer */
-							},
-						})
-					}
-				>
-					<HugeiconsIcon icon={Settings01Icon} className="size-4" />
-					{t("Project settings")}
-				</DropdownMenuItem>
+					<DropdownMenuItem
+						className="flex items-center gap-2"
+						onClick={() =>
+							handleSelect({
+								action: () => {
+									/* Project settings will be handled by a drawer */
+								},
+							})
+						}
+					>
+						<HugeiconsIcon icon={Settings01Icon} className="size-4" />
+						{t("Project settings")}
+					</DropdownMenuItem>
 
-				<DropdownMenuItem
-					className="flex items-center gap-2"
-					onClick={() =>
-						handleSelect({
-							action: onFullscreenPreview,
-						})
-					}
-				>
-					<HugeiconsIcon icon={FullScreenIcon} className="size-4" />
-					{t("Fullscreen preview")}
-				</DropdownMenuItem>
-			</DropdownMenuContent>
-		</DropdownMenu>
+					<DropdownMenuItem
+						className="flex items-center gap-2"
+						onClick={() =>
+							handleSelect({
+								action: onFullscreenPreview,
+							})
+						}
+					>
+						<HugeiconsIcon icon={FullScreenIcon} className="size-4" />
+						{t("Fullscreen preview")}
+					</DropdownMenuItem>
+
+					<DropdownMenuItem
+						className="flex items-center gap-2"
+						onClick={handleFeedback}
+					>
+						<HugeiconsIcon icon={BubbleChatIcon} className="size-4" />
+						{t("Feedback")}
+					</DropdownMenuItem>
+				</DropdownMenuContent>
+			</DropdownMenu>
+
+			<FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+		</>
 	);
 }
